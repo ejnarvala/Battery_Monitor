@@ -1,6 +1,7 @@
 /*
    Email client sketch for IDE v1.0.5 and w5100/w5200
    Posted 7 May 2015 by SurferTim
+   Updated 9 Jun 2017 by ejnarvala
 */
 #include "emailer.h"
 #include "Arduino.h"
