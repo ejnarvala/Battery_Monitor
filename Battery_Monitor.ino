@@ -12,6 +12,8 @@ IPAddress gateway(30,30,30,254);
 IPAddress subnet(255, 255, 255, 0);
 
 extern EthernetClient client;
+Adafruit_MCP9808 tempsensor = Adafruit_MCP9808();
+
 
 void setup(){
   Serial.begin(9600);
@@ -27,11 +29,13 @@ void loop(){
   inChar = Serial.read();
   if(inChar == 'e')
   {
-    String message = "Hi Ejnar";
-    String to_email = "ejnar123@gmail.com";
+    String message = "Emailer?";
+    String to_email = "aboss@lenovo.com";
     Serial.println("Please Wait, Attmepting to Send");
     send_email(message, to_email);
   }
+
+
 }
 
 
