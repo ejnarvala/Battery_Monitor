@@ -1,7 +1,6 @@
 /*
    Email client sketch for IDE v1.0.5 and w5100/w5200
    Posted 7 May 2015 by SurferTim
-   Updated 9 Jun 2017 by ejnarvala
 */
 #include "emailer.h"
 #include "Arduino.h"
@@ -9,35 +8,12 @@
 #include <Ethernet.h>
 
 
-// this must be unique
-//byte mac[] = { 0x8A, 0x7F, 0xA7, 0x2F, 0x8D, 0xE0 };  
-//IPAddress ip(30,30,30,90);
-//IPAddress gateway(30,30,30,254);
-//IPAddress subnet(255, 255, 255, 0);
-
-
-
-//char server[] = "mail.smtp2go.com";
-IPAddress server (207,58,142,213); //equivalent but supposed to work better
+//char smtpserver[] = "mail.smtp2go.com";
+IPAddress smtpserver (207,58,142,213); //equivalent but supposed to work better
 int port = 80; //only open port on this network
 
 
 EthernetClient client;
-
-
-//void initialize_ethernet()
-//{
-//  Serial.println("Initializing Ethernet");
-//  Ethernet.begin(mac, ip, gateway, gateway, subnet);
-//  delay(30000);
-//  pinMode(4, OUTPUT);
-//  digitalWrite(4, HIGH);
-//  Serial.println("Ready");
-//}
-
-
-
-
 
 
 void send_email(String message, String to_email)
@@ -52,7 +28,7 @@ byte sendEmail(String message, String to_email)
   byte thisByte = 0;
   byte respCode;
  
-  if(client.connect(server,port)) {
+  if(client.connect(smtpserver,port)) {
     Serial.println(F("connected"));
   } else {
     Serial.println(F("connection failed"));
