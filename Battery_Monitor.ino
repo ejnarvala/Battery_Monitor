@@ -38,24 +38,23 @@
 
 //<-------------STATIC DEFINIITONS----------------->
 //#define BUFSIZ 75 // How big our line buffer should be for sending the files over the ethernet.
-#define UPPER_TEMP_THRESHOLD 100.00
-#define LOWER_TEMP_THRESHOLD -100.00
-#define UPPER_GAS_THRESHOLD 400
-#define LOWER_GAS_THRESHOLD 100
+#define UPPER_TEMP_THRESH 100.00
+#define LOWER_TEMP_THRESH -100.00
+#define UPPER_GAS_THRESH 400
+#define LOWER_GAS_THRESH 100
 #define MEASURE_INTERVAL 30000
 #define DAYS_BETWEEN_NEW_LOG 1
 #define ADDR_COUNT 1 //address for where day count will be stored in EEPROM
 #define ADDR_DAY 0 //address for where day number " "
-//#define LOW_FREQ 250
-//#define HIGH_FREQ 600
+#define HIGH_FREQ 700
+#define LOW_FREQ 200
+
 //<------------------------------------------------>
 
 
 
-//<------------------VARIABLES--------------------->
+//<------------------LOGGING VARIABLES--------------------->
 //extern EthernetClient client; //Used for Emailing/Texting
-Adafruit_MCP9808 tempsensor = Adafruit_MCP9808(); //Instantiate Temperature Sensor
-float temp_c;
 String filename;
 int filenum;
 tmElements_t tm;
@@ -63,6 +62,28 @@ int day_current;
 File working_file;
 unsigned long lastIntervalTime = 0;
 //<------------------------------------------------>
+//<------------------SENSOR VARIABLES--------------------->
+// Create the MCP9808 temperature sensor object
+Adafruit_MCP9808 tempsensor0 = Adafruit_MCP9808();
+Adafruit_MCP9808 tempsensor1 = Adafruit_MCP9808();
+Adafruit_MCP9808 tempsensor2 = Adafruit_MCP9808();
+Adafruit_MCP9808 tempsensor3 = Adafruit_MCP9808();
+
+String blank  = "";
+String tab = "     ";
+const int buzzerPin = 15;
+const int doorPin0 = 3;
+const int doorPin1 = 4; 
+const int doorPin2 = 5;
+const int doorPin3 = 6; 
+float temps[] = {0,0,0,0};
+
+
+//<-----------------FUNCTIONS-------------------->
+void playSound(int cNum, int frequency);
+void initialize();
+void getTemps();
+
 
 
 
@@ -79,8 +100,21 @@ EthernetServer server(80);
 
 
 void setup(){
+
+
   //Start Serial monitoring
   Serial.begin(9600);
+
+  //Begin Pins
+    pinMode(buzzerPin, OUTPUT);
+    pinMode(doorPin0, INPUT_PULLUP); 
+    digitalWrite(doorPin0, HIGH);
+    pinMode(doorPin1, INPUT_PULLUP); 
+    digitalWrite(doorPin1, HIGH);
+    pinMode(doorPin2, INPUT_PULLUP); 
+    digitalWrite(doorPin2, HIGH);
+    pinMode(doorPin3, INPUT_PULLUP); 
+    digitalWrite(doorPin3, HIGH);
   
   //Start SD card
   initialize_sd();
@@ -115,12 +149,15 @@ void setup(){
 //  Serial.println("New File: " + filename + " Created!");
 //  workingFile.close();
   
-  temp_c = tempsensor.readTempC(); //get first temperature reading
-  Serial.println("The Initial temperature is: " + (String) temp_c);
-  
 }
 
 void loop(){
+if(digitalRead(doorPin0) == HIGH){playSound(1, LOW_FREQ); }
+if(digitalRead(doorPin1) == HIGH){playSound(2, LOW_FREQ); }
+if(digitalRead(doorPin2) == HIGH){playSound(3, LOW_FREQ); }
+if(digitalRead(doorPin3) == HIGH){playSound(4, LOW_FREQ); }
+
+
   //Check if a day has passed to create a new log
   RTC.read(tm);
   //if a new day occurs, increment day count
@@ -140,13 +177,41 @@ void loop(){
 
   //Check if its time to take a new measurement
   if((millis()%lastIntervalTime) >= MEASURE_INTERVAL){
-    temp_c = tempsensor.readTempC(); //get temperature reading
+  getTemps();
     RTC.read(tm); //get current date/time
     sdLog(filename, (String) tm.Hour + ':' + (String) tm.Minute + ':' + (String) tm.Second + " , " + (String) temp_c); //save to SD log
-    if (temp_c > UPPER_TEMP_THRESHOLD){
-      send_email("The temperature is: " + (String) temp_c + " which is above your threshold of " + (String) UPPER_TEMP_THRESHOLD, "batlablen@gmail.com");
-    }else if (temp_c < LOWER_TEMP_THRESHOLD){
-      send_email("The temperature is: " + (String) temp_c + " which is below your threshold of " + (String) LOWER_TEMP_THRESHOLD, "batlablen@gmail.com");
+   //Sensor 0 
+    if (temps[0]> UPPER_TEMP_THRESH){
+     send_email("The temperature is: " + (String) temps[0] + " which is above your threshold of " + (String) UPPER_TEMP_THRESH, "batlablen@gmail.com");
+     playSound(1 ,HIGH_FREQ);
+    }else if (temps[0] < LOWER_TEMP_THRESH){
+      send_email("The temperature is: " + (String) temps[0] + " which is below your threshold of " + (String) LOWER_TEMP_THRESH, "batlablen@gmail.com");
+    playSound(1 ,HIGH_FREQ);
+    }
+
+    //Sensor 1
+    if (temps[1]> UPPER_TEMP_THRESH){
+      send_email("The temperature is: " + (String) temps[1] + " which is above your threshold of " + (String) UPPER_TEMP_THRESH, "batlablen@gmail.com");
+      playSound(2 ,HIGH_FREQ);
+    }else if (temps[1] < LOWER_TEMP_THRESH){
+      send_email("The temperature is: " + (String) temps[1] + " which is below your threshold of " + (String) LOWER_TEMP_THRESH, "batlablen@gmail.com");
+      playSound(2 ,HIGH_FREQ);  
+    }
+    //Sensor 2
+    if (temps[2]> UPPER_TEMP_THRESH){
+      send_email("The temperature is: " + (String) temps[2] + " which is above your threshold of " + (String) UPPER_TEMP_THRESH, "batlablen@gmail.com");
+      playSound(3 ,HIGH_FREQ);
+    }else if (temps[2] < LOWER_TEMP_THRESH){
+      send_email("The temperature is: " + (String) temps[2] + " which is below your threshold of " + (String) LOWER_TEMP_THRESH, "batlablen@gmail.com");
+      playSound(3 ,HIGH_FREQ);
+    }
+    //Sensor 3
+    if (temps[3]> UPPER_TEMP_THRESH){
+      send_email("The temperature is: " + (String) temps[3] + " which is above your threshold of " + (String) UPPER_TEMP_THRESH, "batlablen@gmail.com");
+      playSound(4 ,HIGH_FREQ);
+    }else if (temps[3] < LOWER_TEMP_THRESH){
+      send_email("The temperature is: " + (String) temps[3] + " which is below your threshold of " + (String) LOWER_TEMP_THRESH, "batlablen@gmail.com");
+      playSound(4 ,HIGH_FREQ);
     }
     lastIntervalTime = millis();
   }
@@ -244,11 +309,18 @@ void loop(){
 
 
 void initialize_tempsensor(){
-  while (!tempsensor.begin()) {
-     Serial.println(F("Couldn't find MCP9808!\nTrying Again..."));
-     delay(1000);
+ if (!tempsensor0.begin(0x18)) {
+    Serial.println("Couldn't find Sensor 0");
   }
-  Serial.println(F("Temperature Sensor Initialized"));
+  if (!tempsensor1.begin(0x19)) {
+    Serial.println("Couldn't find Sensor 1");
+  }
+    if (!tempsensor2.begin(0x1A)) {
+    Serial.println("Couldn't find Sensor 2");
+  }
+    if (!tempsensor3.begin(0x1C)) {
+    Serial.println("Couldn't find Sensor 3");
+  }
 }
 
 
@@ -360,6 +432,20 @@ void ListFiles(EthernetClient client) {
   client.println("</ul>");
   workingDir.close();
 }
+void playSound(int cNum, int frequency) {
+
+  for(int k = 0; k<cNum; k++) {
+    tone(buzzerPin, frequency, 500);
+    delay(1000);
+    tone(buzzerPin, 0, 400);
+    }    
+  }
+void getTemps() {
+temps[0] = tempsensor0.readTempC();
+temps[1] = tempsensor1.readTempC();
+temps[2] = tempsensor2.readTempC();
+temps[3] = tempsensor3.readTempC();
+  }
 
 
 
@@ -418,4 +504,3 @@ void HtmlHeader404(EthernetClient client) {
       client.println( buffer );
     }
 } 
-
