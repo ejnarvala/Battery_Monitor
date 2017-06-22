@@ -136,8 +136,6 @@ void loop(){
   }
   
 
-
-
   //Check if its time to take a new measurement
   if((millis()%lastIntervalTime) >= MEASURE_INTERVAL){
     temp_c = tempsensor.readTempC(); //get temperature reading
