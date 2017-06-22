@@ -14,8 +14,10 @@
  * 
  * 
  * This is a sketch which monitors the temperature and gas of four battery 
- * testing cabinets. The data can be read live on a local web page at the
- * arduino's ip address which also lists a history of logs.
+ * testing cabinets. Data is logged on the SD card and live aata can be read 
+ * local web page at the arduino's ip address which also lists a history of logs.
+ * If temperatures or gas thresholds are surpassed, an email or text can be sent to
+ * alert you.
  */
 
 
@@ -30,19 +32,15 @@
 #include <SD.h>
 
 
+
+//<-------------STATIC DEFINIITONS----------------->
 //#define BUFSIZ 75 // How big our line buffer should be for sending the files over the ethernet.
-
-
-
-
-//<-----------------IP SETTINGS-------------------->
-byte mac[] = { 0x8A, 0x7F, 0xA7, 0x2F, 0x8D, 0xE0 };  
-IPAddress ip(30,30,30,90);
-IPAddress gateway(30,30,30,254);
-IPAddress subnet(255, 255, 255, 0);
-EthernetServer server(80);
-//<---------------END IP SETTINGS------------------>
-
+#define UPPER_TEMP_THRESHOLD 100.00
+#define LOWER_TEMP_THRESHOLD -100.00
+#define UPPER_GAS_THRESHOLD 400
+#define LOWER_GAS_THRESHOLD 100
+#define SAMPLING_INTERVAL 30000
+//<------------------------------------------------>
 
 
 
@@ -54,6 +52,16 @@ String filename;
 int filenum;
 int loopcount = 0;
 //<------------------------------------------------>
+
+
+
+//<-----------------IP SETTINGS-------------------->
+byte mac[] = { 0x8A, 0x7F, 0xA7, 0x2F, 0x8D, 0xE0 };  
+IPAddress ip(30,30,30,90);
+IPAddress gateway(30,30,30,254);
+IPAddress subnet(255, 255, 255, 0);
+EthernetServer server(80);
+//<---------------END IP SETTINGS------------------>
 
 
 
@@ -87,17 +95,20 @@ void setup(){
   File workingFile = SD.open(filename);
   Serial.println("New File: " + filename + " Created!");
   workingFile.close();
-
+  temp_c = tempsensor.readTempC(); //get first temperature reading
 }
 
 void loop(){
-  if(++loopcount == 500){
-    sdLog(filename, (String) temp_c); //save to SD log
-    loopcount = 0;
+  if(millis()%SAMPLING_INTERVAL < 5){
+    temp_c = tempsensor.readTempC(); //get temperature reading
+    sdLog(filename,(String) millis()+ "," + (String) temp_c); //save to SD log
+    if (temp_c > UPPER_TEMP_THRESHOLD){
+      send_email("The temperature is: " + (String) temp_c + " which is above your threshold of " + (String) UPPER_TEMP_THRESHOLD, "batlablen@gmail.com");
+    }else if (temp_c < LOWER_TEMP_THRESHOLD){
+      send_email("The temperature is: " + (String) temp_c + " which is below your threshold of " + (String) LOWER_TEMP_THRESHOLD, "batlablen@gmail.com");
+    }
   }
-  
-  temp_c = tempsensor.readTempC(); //get temperature reading
-  
+    
   
   char clientline[BUFSIZ];
   int index = 0;
@@ -138,7 +149,7 @@ void loop(){
           // print all the data files, use a helper to keep it clean
           client.println(F("<style> h1 {font-size: 42px} h2 { font-size: 24px} html {background: #e6e9e9; height 100%; background-image: linear-gradient(270deg, rgb(230, 233, 233) 0%, rgb(216, 221, 221) 100%); -webkit-font-smoothing: antialiased;} body { height: 100%; background: #fff; box-shadow: 0 0 2px rgba(0, 0, 0, 0.06); color: #545454; font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serif; font-size: 42px; text-align: center; line-height: 1.5; margin: 0 auto; max-width: 800px; padding: 2em 2em 4em;} li { list-style-type: none; font-size: 18px; font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serif;} </style>"));
           client.println(F("<h1>Battery Lab Temperature and Gas Monitor<h1>"));
-          client.print("<h1>Temperature: "); client.print(temp_c);  client.print("&degC<h1>");
+          client.print("<h1>Temperature: "); client.print(tempsensor.readTempC());  client.print("&degC<h1>");
           client.println(F("<h2>View data for the week of (dd-mm-yy):</h2>"));
           ListFiles(client);
         }
@@ -158,7 +169,10 @@ void loop(){
           }
           
           Serial.println("Opened!");
-          HtmlHeaderOK(client);
+          //HtmlHeaderOK(client);
+          client.println(F("HTTP/1.1 200 OK"));
+          client.println(F("Content-Type: text/html"));
+          client.println("");
           while(file.available()) {
             int num_bytes_read;
             uint8_t byte_buffer[32];
