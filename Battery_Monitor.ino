@@ -30,6 +30,9 @@
 #include <SPI.h>
 #include <Ethernet.h>
 #include <SD.h>
+#include <EEPROM.h>
+#include <TimeLib.h>
+#include <DS1307RTC.h>
 
 
 
@@ -39,7 +42,12 @@
 #define LOWER_TEMP_THRESHOLD -100.00
 #define UPPER_GAS_THRESHOLD 400
 #define LOWER_GAS_THRESHOLD 100
-#define SAMPLING_INTERVAL 30000
+#define MEASURE_INTERVAL 30000
+#define DAYS_BETWEEN_NEW_LOG 1
+#define ADDR_COUNT 1 //address for where day count will be stored in EEPROM
+#define ADDR_DAY 0 //address for where day number " "
+//#define LOW_FREQ 250
+//#define HIGH_FREQ 600
 //<------------------------------------------------>
 
 
@@ -50,7 +58,10 @@ Adafruit_MCP9808 tempsensor = Adafruit_MCP9808(); //Instantiate Temperature Sens
 float temp_c;
 String filename;
 int filenum;
-int loopcount = 0;
+tmElements_t tm;
+int day_current;
+File working_file;
+unsigned long lastIntervalTime = 0;
 //<------------------------------------------------>
 
 
@@ -81,32 +92,63 @@ void setup(){
   //Start Temperature Sensor
   initialize_tempsensor();
 
-
-
-
-  //Temporary data logging on SD which just saves data as next available integer everytime program restarts
-  File myFile = SD.open("data/0.txt", FILE_WRITE); //should always be there but overwrite anyways
-  File workingDir = SD.open("/data/");
-  filenum = 1;
-  while(SD.exists("data/" + (String) filenum + ".txt")){
-    filenum++;
+  //see if it is the same day as last log
+  RTC.read(tm);
+  filename = "data/" + (String) tm.Month + "-" + (String) tm.Day + "-" + (String) tmYearToCalendar(tm.Year) + ".txt";
+  if(SD.exists(filename)){
+    Serial.println("Log for today already exists, appending to log: " + filename);
+  }else{
+    Serial.println("Creating new log: " + filename);
   }
-  filename = "data/" + (String) filenum + ".txt";
-  File workingFile = SD.open(filename);
-  Serial.println("New File: " + filename + " Created!");
-  workingFile.close();
+  //workingFile = SD.open(filename);
+  
+  
+  //Temporary data logging on SD which just saves data as next available integer everytime program restarts
+//  File myFile = SD.open("data/0.txt", FILE_WRITE); //should always be there but overwrite anyways
+//  File workingDir = SD.open("/data/");
+//  filenum = 1;
+//  while(SD.exists("data/" + (String) filenum + ".txt")){
+//    filenum++;
+//  }
+//  filename = "data/" + (String) filenum + ".txt";
+//  File workingFile = SD.open(filename);
+//  Serial.println("New File: " + filename + " Created!");
+//  workingFile.close();
+  
   temp_c = tempsensor.readTempC(); //get first temperature reading
+  Serial.println("The Initial temperature is: " + (String) temp_c);
+  
 }
 
 void loop(){
-  if(millis()%SAMPLING_INTERVAL < 5){
+  //Check if a day has passed to create a new log
+  RTC.read(tm);
+  //if a new day occurs, increment day count
+  if(EEPROM.read(ADDR_DAY) != day_current){
+    Serial.println("NEW DAY");
+    EEPROM.write(ADDR_DAY, day_current); //overwrite EEPROM day
+    EEPROM.write(ADDR_COUNT, EEPROM.read(ADDR_COUNT) + 1); //increment count by one
+  }
+  //if number of days to make a new log has occured, make a new log
+  if(EEPROM.read(ADDR_COUNT) >= DAYS_BETWEEN_NEW_LOG){
+    EEPROM.write(ADDR_COUNT, 0); //reset count
+    filename = "data/" + (String) tm.Month + "-" + (String) tm.Day + "-" + (String) tmYearToCalendar(tm.Year) + ".txt"; //update file name with new date
+  }
+  
+
+
+
+  //Check if its time to take a new measurement
+  if((millis()%lastIntervalTime) >= MEASURE_INTERVAL){
     temp_c = tempsensor.readTempC(); //get temperature reading
-    sdLog(filename,(String) millis()+ "," + (String) temp_c); //save to SD log
+    RTC.read(tm); //get current date/time
+    sdLog(filename, (String) tm.Hour + ':' + (String) tm.Minute + ':' + (String) tm.Second + " , " + (String) temp_c); //save to SD log
     if (temp_c > UPPER_TEMP_THRESHOLD){
       send_email("The temperature is: " + (String) temp_c + " which is above your threshold of " + (String) UPPER_TEMP_THRESHOLD, "batlablen@gmail.com");
     }else if (temp_c < LOWER_TEMP_THRESHOLD){
       send_email("The temperature is: " + (String) temp_c + " which is below your threshold of " + (String) LOWER_TEMP_THRESHOLD, "batlablen@gmail.com");
     }
+    lastIntervalTime = millis();
   }
     
   
