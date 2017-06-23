@@ -259,10 +259,15 @@ void loop(){
           // send a standard http response header
           HtmlHeaderOK(client);
           // print all the data files, use a helper to keep it clean
-          client.print(F("<style> th,td {padding: 12px;color: #fff; text-align: center; border: 1px solid #ddd;} table{color: #fff; border: 1px solid #ddd; border-collapse: collapse;}"));
-          client.print(F("h1 {font-size: 42px}; h2 { color: #fff; font-size: 24px font-color} html {background: #ecf0f1; height 100%; -webkit-font-smoothing: antialiased;} body { color: #fff; height: 100%; background: #3498db; box-shadow: 0 0 2px rgba(0, 0, 0, 0.06); color: #545454; font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serif; font-size: 42px; text-align: center; line-height: 1.5; margin: 0 auto; max-width: 800px; padding: 2em 2em 4em;} li { list-style-type: none; font-size: 18px; font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serif;} </style>"));
-          client.print(F("<h1>Battery Lab Temperature and Gas Monitor<h1>"));
-          client.print(F("<table style=\"width:100%\"><tr><th> </th><th>Cabinet 1</th><th>Cabinet 2</th><th>Cabinet 3</th><th>Cabinet 4</th></tr>"));
+
+
+          
+          client.print(F("<!DOCTYPE html><html><style> th,td {padding: 12px; color: #fff; text-align: center; border: 1px solid #ddd;} table{color: #fff; border: 1px solid #ddd; border-collapse: collapse; width: auto;}"));
+          client.print(F("h1 {font-size: 42px; color: #fff;} h2{color: #fff; font-size: 32px;} html {background: #ddd; height: 100%;}"));
+          client.print(F("body { color: #fff; height: 100%; background: #3498db; box-shadow: 0 0 2px rgba(0, 0, 0, 0.06); color: #545454; font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serif; text-align: center; line-height: 1.5; margin: 0 auto; max-width: 800px; padding: 2em 2em 4em;} li { list-style-type: none; font-size: 18px; font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serif;} </style>"));
+          client.print(F("<head><title>Arduino Battery Lab Monitor</title></head><body>"));
+          client.print(F("<h1>Arduino Battery Lab Monitor</h1>"));
+          client.print(F("<table style=\"width:100%\"><tr><th>Sensor</th><th>Cabinet 1</th><th>Cabinet 2</th><th>Cabinet 3</th><th>Cabinet 4</th></tr>"));
           client.print(F("<tr><td>Temperature</td>"));
           getTemps(temps);
           for (int i = 0; i < 4; i++){
@@ -277,19 +282,9 @@ void loop(){
             }
           }
           client.print(F("</tr></table>"));
-
-          
-//          client.print("<h1>Temperatures: \n");
-          //temps = getTemps(temps);
-          //getTemps(temps);
-//          for (int i = 1; i < 5; i++){
-//            client.print("Sensor " + (String) i + ": " + (String) temps[i] + "&degC");
-//          }
-//          client.print("<h1>");
-
-
-          client.println(F("<h2>View data for the week of (mm-dd-yy):</h2>"));
+          client.print(F("<h2>View data for the week of (mm-dd-yy):</h2>"));
           ListFiles(client);
+          client.print(F("</body></html>"));
         }
         else if (strstr(clientline, "GET /") != 0) {
           // this time no space after the /, so a sub-file!
