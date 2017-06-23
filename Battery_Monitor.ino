@@ -81,15 +81,14 @@ const int doorPin0 = 3;
 const int doorPin1 = 7; 
 const int doorPin2 = 5;
 const int doorPin3 = 6;
-float* temps;
+bool *doors = (bool*) malloc (4 * sizeof(bool));
+float *temps = (float*) malloc (4* sizeof(float));
 bool emergency_mode = false;
-
-
 
 
 //<-----------------FUNCTIONS-------------------->
 //void playSound(int cNum, int frequency)
-//float* getTemps()
+//void getTemps(float temps*)
 //void initialize_ethernet()
 //void initialize_sd();
 //void initialize_tempsensor()
@@ -156,31 +155,21 @@ void setup(){
     sdLog(file_name, "Starting Log");
     Serial.println("here");
   }
+    
   
-  //workingFile = SD.open(file_name);
-  
-  
-  //Temporary data logging on SD which just saves data as next available integer everytime program restarts
-//  File myFile = SD.open("data/0.txt", FILE_WRITE); //should always be there but overwrite anyways
-//  File workingDir = SD.open("/data/");
-//  filenum = 1;
-//  while(SD.exists("data/" + (String) filenum + ".txt")){
-//    filenum++;
-//  }
-//  file_name = "data/" + (String) filenum + ".txt";
-//  File workingFile = SD.open(file_name);
-//  Serial.println("New File: " + file_name + " Created!");
-//  workingFile.close();
   Serial.println("Initial Temperatures: " + getTempsString());
 }
 
 void loop(){
   //Buzz if any door is open, play corresponding sound
-  if(digitalRead(doorPin0) == HIGH){playSound(1, LOW_FREQ); Serial.println("DOOR 0 is OPEN");} //if door 1 is open
-  if(digitalRead(doorPin1) == HIGH){playSound(2, LOW_FREQ); Serial.println("DOOR 1 is OPEN");}
-  if(digitalRead(doorPin2) == HIGH){playSound(3, LOW_FREQ); Serial.println("DOOR 2 is OPEN");}
-  if(digitalRead(doorPin3) == HIGH){playSound(4, LOW_FREQ); Serial.println("DOOR 3 is OPEN");}
-  Serial.println("Doors Checked");
+  checkDoors(doors);
+
+  
+//  if(digitalRead(doorPin0) == HIGH){playSound(1, LOW_FREQ); Serial.println("DOOR 0 is OPEN");} //if door 1 is open
+//  if(digitalRead(doorPin1) == HIGH){playSound(2, LOW_FREQ); Serial.println("DOOR 1 is OPEN");}
+//  if(digitalRead(doorPin2) == HIGH){playSound(3, LOW_FREQ); Serial.println("DOOR 2 is OPEN");}
+//  if(digitalRead(doorPin3) == HIGH){playSound(4, LOW_FREQ); Serial.println("DOOR 3 is OPEN");}
+  //Serial.println("Doors Checked");
   //Check if a day has passed to create a new log
   RTC.read(tm);
   //if a new day occurs, increment day count
@@ -203,11 +192,11 @@ void loop(){
 //    workingFile.close();
 //  }
   
-  Serial.println("Checking to see if need new measurement");
+  //Serial.println("Checking to see if need new measurement");
   //Check if its time to take a new measurement
   if((millis()%lastIntervalTime) >= measure_interval){ //if its time, get new measuremnt and record it
-    //temps = getTemps();
-    getTemps();
+    //temps = getTemps(temps);
+    getTemps(temps);
     RTC.read(tm); //get current date/time
     sdLog(file_name, (String) tm.Hour + ':' + (String) tm.Minute + ':' + (String) tm.Second + " ," + getTempsString()); //save to SD log
     Serial.println(getTempsString());
@@ -228,39 +217,6 @@ void loop(){
     measure_interval = MEASURE_INTERVAL;
    }
 
-
-   
-//    if (temps[0]> UPPER_TEMP_THRESH){
-//     send_email("The temperature is: " + (String) temps[0] + " which is above your threshold of " + (String) UPPER_TEMP_THRESH, "batlablen@gmail.com");
-//     playSound(1 ,HIGH_FREQ);
-//    }else if (temps[0] < LOWER_TEMP_THRESH){
-//      send_email("The temperature is: " + (String) temps[0] + " which is below your threshold of " + (String) LOWER_TEMP_THRESH, "batlablen@gmail.com");
-//    playSound(1 ,HIGH_FREQ);
-//    }
-//    //Sensor 1
-//    if (temps[1]> UPPER_TEMP_THRESH){
-//      send_email("The temperature is: " + (String) temps[1] + " which is above your threshold of " + (String) UPPER_TEMP_THRESH, "batlablen@gmail.com");
-//      playSound(2 ,HIGH_FREQ);
-//    }else if (temps[1] < LOWER_TEMP_THRESH){
-//      send_email("The temperature is: " + (String) temps[1] + " which is below your threshold of " + (String) LOWER_TEMP_THRESH, "batlablen@gmail.com");
-//      playSound(2 ,HIGH_FREQ);  
-//    }
-//    //Sensor 2
-//    if (temps[2]> UPPER_TEMP_THRESH){
-//      send_email("The temperature is: " + (String) temps[2] + " which is above your threshold of " + (String) UPPER_TEMP_THRESH, "batlablen@gmail.com");
-//      playSound(3 ,HIGH_FREQ);
-//    }else if (temps[2] < LOWER_TEMP_THRESH){
-//      send_email("The temperature is: " + (String) temps[2] + " which is below your threshold of " + (String) LOWER_TEMP_THRESH, "batlablen@gmail.com");
-//      playSound(3 ,HIGH_FREQ);
-//    }
-//    //Sensor 3
-//    if (temps[3]> UPPER_TEMP_THRESH){
-//      send_email("The temperature is: " + (String) temps[3] + " which is above your threshold of " + (String) UPPER_TEMP_THRESH, "batlablen@gmail.com");
-//      playSound(4 ,HIGH_FREQ);
-//    }else if (temps[3] < LOWER_TEMP_THRESH){
-//      send_email("The temperature is: " + (String) temps[3] + " which is below your threshold of " + (String) LOWER_TEMP_THRESH, "batlablen@gmail.com");
-//      playSound(4 ,HIGH_FREQ);
-//    }
     
     lastIntervalTime = millis(); //update time since last interval
   }
@@ -303,15 +259,35 @@ void loop(){
           // send a standard http response header
           HtmlHeaderOK(client);
           // print all the data files, use a helper to keep it clean
-          client.println(F("<style> h1 {font-size: 42px} h2 { font-size: 24px} html {background: #e6e9e9; height 100%; background-image: linear-gradient(270deg, rgb(230, 233, 233) 0%, rgb(216, 221, 221) 100%); -webkit-font-smoothing: antialiased;} body { height: 100%; background: #fff; box-shadow: 0 0 2px rgba(0, 0, 0, 0.06); color: #545454; font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serif; font-size: 42px; text-align: center; line-height: 1.5; margin: 0 auto; max-width: 800px; padding: 2em 2em 4em;} li { list-style-type: none; font-size: 18px; font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serif;} </style>"));
-          client.println(F("<h1>Battery Lab Temperature and Gas Monitor<h1>"));
-          client.print("<h1>Temperatures: \n");
-          //temps = getTemps();
-          getTemps();
-          for (int i = 1; i < 5; i++){
-            client.print("Sensor " + (String) i + ": " + (String) temps[i] + "&degC");
+          client.print(F("<style> th,td {padding: 12px;color: #fff; text-align: center; border: 1px solid #ddd;} table{color: #fff; border: 1px solid #ddd; border-collapse: collapse;}"));
+          client.print(F("h1 {font-size: 42px}; h2 { color: #fff; font-size: 24px font-color} html {background: #ecf0f1; height 100%; -webkit-font-smoothing: antialiased;} body { color: #fff; height: 100%; background: #3498db; box-shadow: 0 0 2px rgba(0, 0, 0, 0.06); color: #545454; font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serif; font-size: 42px; text-align: center; line-height: 1.5; margin: 0 auto; max-width: 800px; padding: 2em 2em 4em;} li { list-style-type: none; font-size: 18px; font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serif;} </style>"));
+          client.print(F("<h1>Battery Lab Temperature and Gas Monitor<h1>"));
+          client.print(F("<table style=\"width:100%\"><tr><th> </th><th>Cabinet 1</th><th>Cabinet 2</th><th>Cabinet 3</th><th>Cabinet 4</th></tr>"));
+          client.print(F("<tr><td>Temperature</td>"));
+          getTemps(temps);
+          for (int i = 0; i < 4; i++){
+            client.print("<td>" + (String) temps[i] + "</td>");
           }
-          client.print("<h1>");
+          client.print(F("</tr><tr><td>Door</td>")); 
+          for (int i = 0; i < 4; i++){
+            if (doors[i]){
+              client.print(F("<td>Open</td>"));
+            } else {
+              client.print(F("<td>Closed</td>"));
+            }
+          }
+          client.print(F("</tr></table>"));
+
+          
+//          client.print("<h1>Temperatures: \n");
+          //temps = getTemps(temps);
+          //getTemps(temps);
+//          for (int i = 1; i < 5; i++){
+//            client.print("Sensor " + (String) i + ": " + (String) temps[i] + "&degC");
+//          }
+//          client.print("<h1>");
+
+
           client.println(F("<h2>View data for the week of (mm-dd-yy):</h2>"));
           ListFiles(client);
         }
@@ -356,7 +332,7 @@ void loop(){
   }
   
   
-  Serial.println("New Loop");
+  //Serial.println("New Loop");
 }
 
 
@@ -500,15 +476,16 @@ void playSound(int cNum, int frequency) {
     case 4: buzz = buzzerPin3; break;
   }
   for(int k = 0; k<cNum; k++) {
-    tone(buzz, frequency, 500);
-    delay(1000);
+    tone(buzz, 250, 400);
+    delay(100);
     tone(buzz, 0, 400);
-    }
+    delay(100);
   }
+}
 
 
 
-void getTemps(void) {
+void getTemps(float *temps) {
   //temps = {tempsensor0.readTempC(),tempsensor1.readTempC(),tempsensor2.readTempC(),tempsensor3.readTempC()};
   temps[0] = tempsensor0.readTempC();
   temps[1] = tempsensor1.readTempC();
@@ -518,12 +495,43 @@ void getTemps(void) {
  }
 
 String getTempsString(void) {
-  //float* temps = getTemps();
+  getTemps(temps);
   String str = "";
   for(int i = 0; i < 4; i++){
     str = str + temps[i] + " ";
   }
   return str;
+}
+
+void checkDoors(bool *doors){
+  if(digitalRead(doorPin0) == HIGH){
+    playSound(1, LOW_FREQ);
+    doors[0] = true;
+    Serial.println("DOOR 1 is OPEN");
+  } else {
+      doors[0] = false;
+    }
+  if(digitalRead(doorPin1) == HIGH){
+    playSound(2, LOW_FREQ);
+    doors[1] = true;
+    Serial.println("DOOR 2 is OPEN");
+  } else {
+      doors[1] = false;
+  }
+  if(digitalRead(doorPin2) == HIGH){
+    playSound(3, LOW_FREQ);
+    doors[2] = true;
+    Serial.println("DOOR 3 is OPEN");
+  } else {
+      doors[2] = false;
+  }
+  if(digitalRead(doorPin3) == HIGH){
+    playSound(4, LOW_FREQ);
+    doors[3] = true;
+    Serial.println("DOOR 4 is OPEN");
+  } else {
+      doors[3] = false;
+  }
 }
 
 
