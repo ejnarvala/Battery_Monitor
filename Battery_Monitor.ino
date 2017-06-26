@@ -1,3 +1,17 @@
+
+//<-------------Included Libraries---------------->
+#include <Wire.h>
+#include "Adafruit_MCP9808.h"
+#include <Arduino.h>
+#include <SPI.h>
+#include <Ethernet.h>
+#include <SD.h>
+#include <EEPROM.h>
+#include <TimeLib.h>
+#include <DS1307RTC.h>
+//<----------------------------------------------->
+
+
 /* ************************************************************************
  * ***              Battery Lab Temperature/Gas Monitor                 ***
  * ************************************************************************
@@ -20,28 +34,21 @@
  * alert you.
  */
 
+//List emails here that will recieve notifications
+//Remeber to update how many emails there are
+//<-------------EMAIL RECIPIENTS------------------>
+const String emails[] = {"batlablen@gmail.com", "earechavala@lenovo.com"};
+const int emails_length = 2; //number of emails in array to make things easier
 
-
-
-//<-------------Included Libraries---------------->
-#include <Wire.h>
-#include "Adafruit_MCP9808.h"
-#include <Arduino.h>
-#include <SPI.h>
-#include <Ethernet.h>
-#include <SD.h>
-#include <EEPROM.h>
-#include <TimeLib.h>
-#include <DS1307RTC.h>
 //<----------------------------------------------->
 
 
 //<-------------STATIC DEFINIITONS----------------->
-#define UPPER_TEMP_THRESH 100.00
-#define LOWER_TEMP_THRESH -100.00
+#define UPPER_TEMP_THRESH 28
+#define LOWER_TEMP_THRESH 18
 #define UPPER_GAS_THRESH 400
 #define LOWER_GAS_THRESH 100
-#define MEASURE_INTERVAL 30000
+#define MEASURE_INTERVAL 10000
 #define MEASURE_INTERVAL_EMERGENCY
 #define DAYS_BETWEEN_NEW_LOG 1
 #define ADDR_COUNT 1 //address for where day count will be stored in EEPROM
@@ -103,12 +110,13 @@ bool emergency_mode = false;
 //<-------------------FUNCTIONS-------------------->
 //void playSound(int cNum, int frequency)
 //void getTemps(float temps*)
+//String getTempsString(void)
 //void initialize_ethernet()
 //void initialize_sd(void);
 //void initialize_tempsensor(void)
-//String getTempsString(void)
 //void checkDoors(bool *doors)
-//void send_email(String message, String recipient)
+//void send_email(String message) //Sends email to everyone on string arrary 'emails'
+//void sdLog(File filename, String message)
 //<------------------------------------------------>
 
 
@@ -152,14 +160,14 @@ void setup(){
 
   //see if it is the same day as last log
   RTC.read(tm);
-  Serial.println("Today is " + (String) tm.Month + "-" + (String) tm.Day + "-" + (String) tmYearToCalendar(tm.Year));
-  file_name = "data/" + (String) tm.Month + "-" + (String) tm.Day + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".txt";
+  Serial.println("Today is " + twoDigitString(tm.Month) + "-" + twoDigitString(tm.Day) + "-" + (String) tmYearToCalendar(tm.Year));
+  file_name = "data/" + twoDigitString(tm.Month) + "-" + twoDigitString(tm.Day) + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".CSV";
   if(SD.exists(file_name)){
     Serial.println("Log for today already exists, appending to log: " + file_name);
-    sdLog(file_name, "Appending to Log");
+    //sdLog(file_name, "Appending to Log");
   }else{
     Serial.println("Creating new log: " + file_name);
-    sdLog(file_name, "Starting Log");
+    //sdLog(file_name, "Starting Log");
   }
     
   
@@ -179,8 +187,8 @@ void loop(){
     //Check if a day has passed to create a new log
     RTC.read(tm);
   
-    //Constantly renaming file_name so creates log on new day
-    file_name = "data/" + (String) tm.Month + "-" + (String) tm.Day + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".txt"; //update file name with new date
+    //If new day happnes, new log will be started
+    file_name = "data/" + twoDigitString(tm.Month) + "-" + twoDigitString(tm.Day) + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".CSV"; //update file name with new date
   
     //This code can be used to wait for multiple days to pass. Uncomment below and comment out line above to use;
     /*
@@ -192,16 +200,17 @@ void loop(){
     if number of days to make a new log has occured, make a new log
     if(EEPROM.read(ADDR_COUNT) >= DAYS_BETWEEN_NEW_LOG){
       EEPROM.write(ADDR_COUNT, 0); //reset count
-      file_name = "data/" + (String) tm.Month + "-" + (String) tm.Day + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".txt"; //update file name with new date
+      file_name = "data/" + (String) tm.Month + "-" + (String) tm.Day + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".CSV"; //update file name with new date
     }
     */
     getTemps(temps);
-    sdLog(file_name, (String) tm.Hour + ':' + (String) tm.Minute + ':' + (String) tm.Second + " ," + getTempsString()); //save to SD log
+    sdLog(file_name, twoDigitString(tm.Month - 1) + '-' + twoDigitString(tm.Day) + '-' + (String)tmYearToCalendar(tm.Year) +  ' ' + twoDigitString(tm.Hour) + ':' + twoDigitString(tm.Minute) + ':' + twoDigitString(tm.Second)
+    + ',' + temps[0] + ',' + temps[1] + ',' + temps[2] + ',' + temps[3]);
     //Serial.println(getTempsString());
-   //If any sensors are out of bounds, send an email
+    //If any sensors are out of bounds, send an email
     for (int n = 0; n < 4; n++){
       if (temps[n] > UPPER_TEMP_THRESH || temps[n] < LOWER_TEMP_THRESH){
-      //send_email("The temperature is: " + (String) temps[n] + " which is out of your threshold limits (" + (String) LOWER_TEMP_THRESH + "-" + (String) UPPER_TEMP_THRESH + ").", "batlablen@gmail.com");
+        send_email("The temperature is: " + (String) temps[n] + " which is out of your temperature threshold limits (" + (String) LOWER_TEMP_THRESH + "-" + (String) UPPER_TEMP_THRESH + ").");
         playSound(n+1 ,HIGH_FREQ);
         emergency_mode = true;
       }
@@ -424,7 +433,7 @@ void sdLog(String fileName, String stringToWrite) {
     Serial.print("Writing to ");
     Serial.print(fileName);
     Serial.print("...");
-    myFile.println(stringToWrite);
+    myFile.print(stringToWrite);
     // close the file:
     myFile.close();
     Serial.println("done.");
@@ -503,34 +512,41 @@ void checkDoors(bool *doors){
   if(digitalRead(doorPin0) == HIGH){
     playSound(1, LOW_FREQ);
     doors[0] = true;
-    Serial.println("DOOR 1 is OPEN");
+    //Serial.println("DOOR 1 is OPEN");
   } else {
       doors[0] = false;
     }
   if(digitalRead(doorPin1) == HIGH){
     playSound(2, LOW_FREQ);
     doors[1] = true;
-    Serial.println("DOOR 2 is OPEN");
+    //Serial.println("DOOR 2 is OPEN");
   } else {
       doors[1] = false;
   }
   if(digitalRead(doorPin2) == HIGH){
     playSound(3, LOW_FREQ);
     doors[2] = true;
-    Serial.println("DOOR 3 is OPEN");
+    //Serial.println("DOOR 3 is OPEN");
   } else {
       doors[2] = false;
   }
   if(digitalRead(doorPin3) == HIGH){
     playSound(4, LOW_FREQ);
     doors[3] = true;
-    Serial.println("DOOR 4 is OPEN");
+    //Serial.println("DOOR 4 is OPEN");
   } else {
       doors[3] = false;
   }
 }
 
-
+String twoDigitString(int num){
+  if(num < 10){
+    return '0' + (String) num;
+  }
+  else{
+    return (String) num;
+  }
+}
 
 //-------------------RAM SAVING HTML HEADERS----------------------
 // Strings stored in flash mem for the Html Header (saves ram)
@@ -587,14 +603,16 @@ void HtmlHeader404(EthernetClient client) {
 } 
 //-------------------------------------------------------------------
 
+
 //-------------------EMAIL FUNCTIONS---------------------------------
 
 
-void send_email(String message, String to_email)
+void send_email(String message)
 {
-
-  if(sendEmail(message, to_email)) Serial.println(F("Email sent"));
-  else Serial.println(F("Email failed"));
+  for(int i = 0; i < emails_length; i++){
+    if(sendEmail(message, emails[i])) Serial.println(F("Email sent"));
+    else Serial.println(F("Email failed"));
+  }
 }
  
 byte sendEmail(String message, String to_email)

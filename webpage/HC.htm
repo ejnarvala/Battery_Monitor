@@ -1,0 +1,190 @@
+<!DOCTYPE HTML>
+<html>
+    <head>
+        <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+        <title>Arduino Data History!</title>
+<!--        <script type="text/javascript" src="date.js"></script>-->
+        
+        <script src="https://code.jquery.com/jquery-3.1.1.min.js"
+		integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
+		crossorigin="anonymous"></script>
+<!--        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>-->
+        <script type="text/javascript">
+function getDataFilename(str){
+    point = str.lastIndexOf("file=")+4;
+    tempString = str.substring(point+1,str.length)
+    if (tempString.indexOf("&") == -1){
+        return(tempString);
+    }
+    else{
+        return tempString.substring(0,tempString.indexOf("&"));
+    }
+}
+query  = window.location.search;
+var dataFilePath = "/data/"+getDataFilename(query);
+//var dataFilePath = getDataFilename(query);
+$(function () {
+    var chart;
+    $(document).ready(function() {
+        // define the options
+        var options = {
+            global: {
+                useUTC: true
+            },
+            chart: {
+                renderTo: 'container',
+                zoomType: 'xy',
+                spacingRight: 20
+            },
+    
+            title: {
+                text: 'Temperature Values Recorded by Arduino'
+            },
+    
+            subtitle: {
+                text: 'Click and drag in the plot area to zoom in'
+            },
+    
+            xAxis: {
+                type: 'datetime',
+                maxZoom: 2 * 3600000
+            },
+    
+            yAxis: {
+                title: {
+                    text: 'Temperature (Celcius)'
+                },
+                min: 0,
+                startOnTick: false,
+                showFirstLabel: false
+            },
+    
+            legend: {
+                enabled: true
+            },
+    
+            tooltip: {
+                formatter: function() {
+                        return '<b>'+ this.series.name +'</b><br/>'+
+                        Highcharts.dateFormat('%H:%M - %b %e, %Y', this.x) +': '+ this.y;
+                }
+            },
+    
+            plotOptions: {
+                series: {
+                    cursor: 'pointer',
+                    lineWidth: 1.0,
+                    point: {
+                        events: {
+                            click: function() {
+                                hs.htmlExpand(null, {
+                                    pageOrigin: {
+                                        x: this.pageX,
+                                        y: this.pageY
+                                    },
+                                    headingText: this.series.name,
+                                    maincontentText: Highcharts.dateFormat('%H:%M - %b %e, %Y', this.x) +':<br/> '+
+                                        this.y,
+                                    width: 200
+                                });
+                            }
+                        }
+                    },
+                }
+            },
+    
+            series: [{
+                name: 'Sensor 1',
+                marker: {
+                    radius: 2
+                }
+            },
+            {
+                name: 'Sensor 2',
+                marker: {
+                    radius: 2
+                }
+            },
+            {
+                name: 'Sensor 3',
+                marker: {
+                    radius: 2
+                }
+            },
+            {
+                name: 'Sensor 4',
+                marker: {
+                    radius: 2
+                }
+            }]
+        };
+    
+    
+        // Load data asynchronously using jQuery. On success, add the data
+        // to the options and initiate the chart.
+        // This data is obtained by exporting a GA custom report to TSV.
+        // http://api.jquery.com/jQuery.get/
+        jQuery.get(dataFilePath, null, function(csv, state, xhr) {
+            var line = [],
+                datetimeline = [],
+                dateline = [],
+                timesline = [],
+                date,
+    
+                // set up the 5 data series
+                temp0 = [],
+                temp1 = [],
+                temp2 = [],
+                temp3 = []
+    
+            // inconsistency
+            if (typeof csv !== 'string') {
+                csv = xhr.responseText;
+            }
+    
+            // split the data return into lines and parse them
+            csv = csv.split(/\n/g);
+            csv.pop();
+            jQuery.each(csv, function(i, line) {
+                // all data lines start with a double quote
+                line = line.split(',');
+                datetimeline = line[0].split(" ");
+                timesline = datetimeline[1].split(":");
+                dateline = datetimeline[0].split("-");
+                //date = parseInt(line[0], 10)*1000;
+                //date = Date.parse(line[0] + " EST");
+                date = Date.UTC(dateline[2], dateline[0], dateline[1], timesline[0], timesline[1], timesline[2]);
+                temp0.push([date, parseFloat(line[1])]);
+                temp1.push([date, parseFloat(line[2])]);
+                temp2.push([date, parseFloat(line[3])]);
+                temp3.push([date, parseFloat(line[4])]);
+            });
+            options.series[0].data = temp0;
+            options.series[1].data = temp1;
+            options.series[2].data = temp2;
+            options.series[3].data = temp3;
+            chart = new Highcharts.Chart(options);
+            
+        });
+    });
+    
+});
+        </script>
+    </head>
+    <body>
+
+        <script src="https://cdnjs.cloudflare.com/ajax/libs/highcharts/5.0.6/highcharts.js"></script>
+
+        <!-- Additional files for the Highslide popup effect -->
+        <script type="text/javascript" src="http://www.highcharts.com/highslide/highslide-full.min.js"></script>
+        <script type="text/javascript" src="http://www.highcharts.com/highslide/highslide.config.js" charset="utf-8"></script>
+
+        <link rel="stylesheet" type="text/css" href="http://www.highcharts.com/highslide/highslide.css" />
+        <p style="text-align:center;">Please allow the chart to load, it may take up to 30 seconds</p>
+        <div id="container" style="min-width: 400px; width: 100%; margin: 0 auto"></div>
+         <center><a id="link1" href="">Click Here to Download this Log</a></center>
+        <script>
+            document.getElementById("link1").setAttribute("href", dataFilePath);
+        </script>
+    </body>
+</html>
