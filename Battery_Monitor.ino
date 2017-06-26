@@ -110,7 +110,6 @@ bool emergency_mode = false;
 //<-------------------FUNCTIONS-------------------->
 //void playSound(int cNum, int frequency)
 //void getTemps(float temps*)
-//String getTempsString(void)
 //void initialize_ethernet()
 //void initialize_sd(void);
 //void initialize_tempsensor(void)
@@ -161,17 +160,8 @@ void setup(){
   //see if it is the same day as last log
   RTC.read(tm);
   Serial.println("Today is " + twoDigitString(tm.Month) + "-" + twoDigitString(tm.Day) + "-" + (String) tmYearToCalendar(tm.Year));
-  file_name = "data/" + twoDigitString(tm.Month) + "-" + twoDigitString(tm.Day) + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".CSV";
-  if(SD.exists(file_name)){
-    Serial.println("Log for today already exists, appending to log: " + file_name);
-    //sdLog(file_name, "Appending to Log");
-  }else{
-    Serial.println("Creating new log: " + file_name);
-    //sdLog(file_name, "Starting Log");
-  }
-    
-  
-  Serial.println("Initial Temperatures: " + getTempsString());
+  getTemps(temps);
+  Serial.println("Initial Temperatures: " + (String) temps[0] + " " + (String) temps[1] + " " + (String) temps[2] + " " + (String) temps[3]);
 }
 
 void loop(){
@@ -206,7 +196,6 @@ void loop(){
     getTemps(temps);
     sdLog(file_name, twoDigitString(tm.Month - 1) + '-' + twoDigitString(tm.Day) + '-' + (String)tmYearToCalendar(tm.Year) +  ' ' + twoDigitString(tm.Hour) + ':' + twoDigitString(tm.Minute) + ':' + twoDigitString(tm.Second)
     + ',' + temps[0] + ',' + temps[1] + ',' + temps[2] + ',' + temps[3]);
-    //Serial.println(getTempsString());
     //If any sensors are out of bounds, send an email
     for (int n = 0; n < 4; n++){
       if (temps[n] > UPPER_TEMP_THRESH || temps[n] < LOWER_TEMP_THRESH){
@@ -499,14 +488,8 @@ void getTemps(float *temps) {
   temps[3] = tempsensor3.readTempC();
  }
 
-String getTempsString(void) {
-  getTemps(temps);
-  String str = "";
-  for(int i = 0; i < 4; i++){
-    str = str + temps[i] + " ";
-  }
-  return str;
-}
+
+
 
 void checkDoors(bool *doors){
   if(digitalRead(doorPin0) == HIGH){
