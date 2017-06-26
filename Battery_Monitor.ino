@@ -23,7 +23,7 @@
 
 
 
-//#include "emailer.h"
+//<-------------Included Libraries---------------->
 #include <Wire.h>
 #include "Adafruit_MCP9808.h"
 #include <Arduino.h>
@@ -33,11 +33,10 @@
 #include <EEPROM.h>
 #include <TimeLib.h>
 #include <DS1307RTC.h>
-
+//<----------------------------------------------->
 
 
 //<-------------STATIC DEFINIITONS----------------->
-//#define BUFSIZ 75 // How big our line buffer should be for sending the files over the ethernet.
 #define UPPER_TEMP_THRESH 100.00
 #define LOWER_TEMP_THRESH -100.00
 #define UPPER_GAS_THRESH 400
@@ -54,18 +53,30 @@
 
 
 
+//<-----------------IP SETTINGS-------------------->
+byte mac[] = { 0x8A, 0x7F, 0xA7, 0x2F, 0x8D, 0xE0 };  
+IPAddress ip(30,30,30,90);
+IPAddress gateway(30,30,30,254);
+IPAddress subnet(255, 255, 255, 0);
+EthernetServer server(80);
+//char smtpserver[] = "mail.smtp2go.com";
+IPAddress smtpserver (207,58,142,213); //equivalent but supposed to work better
+int port = 80; //only open port on this network
+EthernetClient client;
+//<---------------END IP SETTINGS------------------>
+
+
+
 //<------------------LOGGING VARIABLES--------------------->
-//extern EthernetClient client; //Used for Emailing/Texting
 String file_name;
 int filenum;
 tmElements_t tm;
-int day_current;
-File working_file;
 unsigned long lastIntervalTime = 0;
-long measure_interval = 30000; //Time between measurements
+long measure_interval = 60000; //Time between measurements
 //<------------------------------------------------>
 
-//<------------------SENSOR VARIABLES--------------------->
+
+//<------------------SENSOR VARIABLES-------------->
 // Create the MCP9808 temperature sensor object
 Adafruit_MCP9808 tempsensor0 = Adafruit_MCP9808();
 Adafruit_MCP9808 tempsensor1 = Adafruit_MCP9808();
@@ -84,29 +95,21 @@ const int doorPin3 = 6;
 bool *doors = (bool*) malloc (4 * sizeof(bool));
 float *temps = (float*) malloc (4* sizeof(float));
 bool emergency_mode = false;
+//<------------------------------------------------>
 
 
-//<-----------------FUNCTIONS-------------------->
+
+
+//<-------------------FUNCTIONS-------------------->
 //void playSound(int cNum, int frequency)
 //void getTemps(float temps*)
 //void initialize_ethernet()
-//void initialize_sd();
-//void initialize_tempsensor()
-//getTempsString()
-
-
-//<-----------------IP SETTINGS-------------------->
-byte mac[] = { 0x8A, 0x7F, 0xA7, 0x2F, 0x8D, 0xE0 };  
-IPAddress ip(30,30,30,90);
-IPAddress gateway(30,30,30,254);
-IPAddress subnet(255, 255, 255, 0);
-EthernetServer server(80);
-//char smtpserver[] = "mail.smtp2go.com";
-IPAddress smtpserver (207,58,142,213); //equivalent but supposed to work better
-int port = 80; //only open port on this network
-EthernetClient client;
-//<---------------END IP SETTINGS------------------>
-
+//void initialize_sd(void);
+//void initialize_tempsensor(void)
+//String getTempsString(void)
+//void checkDoors(bool *doors)
+//void send_email(String message, String recipient)
+//<------------------------------------------------>
 
 
 
@@ -123,7 +126,7 @@ void setup(){
   pinMode(buzzerPin2, OUTPUT);
   pinMode(buzzerPin3, OUTPUT);
 
-  //Door pins 0-3
+  //Door pins 0-3, set them closed by default(high)
   pinMode(doorPin0, INPUT_PULLUP); 
   digitalWrite(doorPin0, HIGH);
   pinMode(doorPin1, INPUT_PULLUP); 
@@ -132,16 +135,20 @@ void setup(){
   digitalWrite(doorPin2, HIGH);
   pinMode(doorPin3, INPUT_PULLUP); 
   digitalWrite(doorPin3, HIGH);
+
   
   //Start SD card
   initialize_sd();
   //sdRWTest(); //Uncomment to test SD card Read/Write
+
   
   //Start Ethernet Connection
   initialize_ethernet();
+
   
   //Start Temperature Sensor
   initialize_tempsensor();
+
 
   //see if it is the same day as last log
   RTC.read(tm);
@@ -153,7 +160,6 @@ void setup(){
   }else{
     Serial.println("Creating new log: " + file_name);
     sdLog(file_name, "Starting Log");
-    Serial.println("here");
   }
     
   
@@ -164,64 +170,53 @@ void loop(){
   //Buzz if any door is open, play corresponding sound
   checkDoors(doors);
 
-  
-//  if(digitalRead(doorPin0) == HIGH){playSound(1, LOW_FREQ); Serial.println("DOOR 0 is OPEN");} //if door 1 is open
-//  if(digitalRead(doorPin1) == HIGH){playSound(2, LOW_FREQ); Serial.println("DOOR 1 is OPEN");}
-//  if(digitalRead(doorPin2) == HIGH){playSound(3, LOW_FREQ); Serial.println("DOOR 2 is OPEN");}
-//  if(digitalRead(doorPin3) == HIGH){playSound(4, LOW_FREQ); Serial.println("DOOR 3 is OPEN");}
-  //Serial.println("Doors Checked");
-  //Check if a day has passed to create a new log
-  RTC.read(tm);
-  //if a new day occurs, increment day count
-  file_name = "data/" + (String) tm.Month + "-" + (String) tm.Day + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".txt"; //update file name with new date
-  
 
 
-  
-//  if(EEPROM.read(ADDR_DAY) != day_current){
-//    Serial.println("NEW DAY");
-//    EEPROM.write(ADDR_DAY, day_current); //overwrite EEPROM day
-//    EEPROM.write(ADDR_COUNT, EEPROM.read(ADDR_COUNT) + 1); //increment count by one
-//  }
-  //if number of days to make a new log has occured, make a new log
-//  if(EEPROM.read(ADDR_COUNT) >= DAYS_BETWEEN_NEW_LOG){
-//    EEPROM.write(ADDR_COUNT, 0); //reset count
-//    
-//    file_name = "data/" + (String) tm.Month + "-" + (String) tm.Day + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".txt"; //update file name with new date
-//    File workingFile = SD.open(file_name, FILE_WRITE);
-//    workingFile.close();
-//  }
-  
-  //Serial.println("Checking to see if need new measurement");
+
   //Check if its time to take a new measurement
   if((millis()%lastIntervalTime) >= measure_interval){ //if its time, get new measuremnt and record it
-    //temps = getTemps(temps);
-    getTemps(temps);
-    RTC.read(tm); //get current date/time
-    sdLog(file_name, (String) tm.Hour + ':' + (String) tm.Minute + ':' + (String) tm.Second + " ," + getTempsString()); //save to SD log
-    Serial.println(getTempsString());
-   //If any sensors are out of bounds, send an email
-   //Sensor 0 
-   for (int n = 0; n < 4; n++){
-    if (temps[n] > UPPER_TEMP_THRESH || temps[n] < LOWER_TEMP_THRESH){
-      //send_email("The temperature is: " + (String) temps[n] + " which is out of your threshold limits (" + (String) LOWER_TEMP_THRESH + "-" + (String) UPPER_TEMP_THRESH + ").", "batlablen@gmail.com");
-      playSound(n+1 ,HIGH_FREQ);
-      emergency_mode = true;
-    }
-   }
-   if(emergency_mode){
-    Serial.println("EMERGENCY MODE ACTIVATED; MEASUREMENT INTERVAL CHANGED TO 5 SECONDS");
-    measure_interval = 5000;
-    emergency_mode = false;
-   }else{
-    measure_interval = MEASURE_INTERVAL;
-   }
-
     
+    //Check if a day has passed to create a new log
+    RTC.read(tm);
+  
+    //Constantly renaming file_name so creates log on new day
+    file_name = "data/" + (String) tm.Month + "-" + (String) tm.Day + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".txt"; //update file name with new date
+  
+    //This code can be used to wait for multiple days to pass. Uncomment below and comment out line above to use;
+    /*
+    if(EEPROM.read(ADDR_DAY) != tm.Day){
+      Serial.println("NEW DAY");
+      EEPROM.write(ADDR_DAY, tm.Day); //overwrite EEPROM day
+      EEPROM.write(ADDR_COUNT, EEPROM.read(ADDR_COUNT) + 1); //increment count by one
+    }
+    if number of days to make a new log has occured, make a new log
+    if(EEPROM.read(ADDR_COUNT) >= DAYS_BETWEEN_NEW_LOG){
+      EEPROM.write(ADDR_COUNT, 0); //reset count
+      file_name = "data/" + (String) tm.Month + "-" + (String) tm.Day + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".txt"; //update file name with new date
+    }
+    */
+    getTemps(temps);
+    sdLog(file_name, (String) tm.Hour + ':' + (String) tm.Minute + ':' + (String) tm.Second + " ," + getTempsString()); //save to SD log
+    //Serial.println(getTempsString());
+   //If any sensors are out of bounds, send an email
+    for (int n = 0; n < 4; n++){
+      if (temps[n] > UPPER_TEMP_THRESH || temps[n] < LOWER_TEMP_THRESH){
+      //send_email("The temperature is: " + (String) temps[n] + " which is out of your threshold limits (" + (String) LOWER_TEMP_THRESH + "-" + (String) UPPER_TEMP_THRESH + ").", "batlablen@gmail.com");
+        playSound(n+1 ,HIGH_FREQ);
+        emergency_mode = true;
+      }
+    }
+    if(emergency_mode){
+      Serial.println("EMERGENCY MODE ACTIVATED; MEASUREMENT INTERVAL CHANGED TO 5 SECONDS");
+      measure_interval = 5000;
+      emergency_mode = false;
+     }else{
+      measure_interval = MEASURE_INTERVAL;
+    }
     lastIntervalTime = millis(); //update time since last interval
   }
     
-  
+//<---------------------WEB PAGE CODE-------------------------------------------------->
   char clientline[BUFSIZ];
   int index = 0;
   EthernetClient client = server.available();
@@ -261,24 +256,32 @@ void loop(){
           // print all the data files, use a helper to keep it clean
 
 
-          
-          client.print(F("<!DOCTYPE html><html><style> th,td {padding: 12px; color: #fff; text-align: center; border: 1px solid #ddd;} table{color: #fff; border: 1px solid #ddd; border-collapse: collapse; width: auto;}"));
-          client.print(F("h1 {font-size: 42px; color: #fff;} h2{color: #fff; font-size: 32px;} html {background: #ddd; height: 100%;}"));
-          client.print(F("body { color: #fff; height: 100%; background: #3498db; box-shadow: 0 0 2px rgba(0, 0, 0, 0.06); color: #545454; font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serif; text-align: center; line-height: 1.5; margin: 0 auto; max-width: 800px; padding: 2em 2em 4em;} li { list-style-type: none; font-size: 18px; font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serif;} </style>"));
+          //Styling to make the website look pretty
+          client.print(F("<!DOCTYPE html><html><style> #green{background:limegreen;} #red{background:red;} th{font-weight:bold;} th,td {padding: 12px; color: #fff; text-align: center; border: 0px none;} table{color: #fff; border: 1px solid #ddd; border-collapse: collapse; width: auto;}"));
+          client.print(F("h1 {font-size: 42px; color: #fff;} h2{color: #fff; font-size: 32px;} html {background: #ddd; height: 100%;} ul{columns: 5}"));
+          client.print(F("body { color: #fff; height: 100%; background: #3498db; box-shadow: 0 0 2px rgba(0, 0, 0, 0.06); color: #545454; font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serif; text-align: center; line-height: 1.5; margin: 0 auto; max-width: 900px; padding: 2em 2em 4em;} li { list-style-type: none; font-size: 18px; font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serif;} </style>"));
           client.print(F("<head><title>Arduino Battery Lab Monitor</title></head><body>"));
           client.print(F("<h1>Arduino Battery Lab Monitor</h1>"));
-          client.print(F("<table style=\"width:100%\"><tr><th>Sensor</th><th>Cabinet 1</th><th>Cabinet 2</th><th>Cabinet 3</th><th>Cabinet 4</th></tr>"));
-          client.print(F("<tr><td>Temperature</td>"));
-          getTemps(temps);
+          client.print(F("<table style=\"width:100%\"><tr><th></th><th>Cabinet 1</th><th>Cabinet 2</th><th>Cabinet 3</th><th>Cabinet 4</th></tr>"));
+          client.print(F("<tr><th>Temperature</th>"));
+          getTemps(temps); //Update Temperature readings
+          checkDoors(doors); //Check again if doors are open
           for (int i = 0; i < 4; i++){
-            client.print("<td>" + (String) temps[i] + "</td>");
+            if (temps[i] > UPPER_TEMP_THRESH || temps[i] < LOWER_TEMP_THRESH){
+              client.print(F("<td id=\"red\">"));
+            } 
+            else {
+              client.print(F("<td id=\"green\">"));
+            }
+            client.print((String)temps[i] + "</td>");
           }
-          client.print(F("</tr><tr><td>Door</td>")); 
+          client.print(F("</tr><tr><th>Door</th>")); 
           for (int i = 0; i < 4; i++){
             if (doors[i]){
-              client.print(F("<td>Open</td>"));
-            } else {
-              client.print(F("<td>Closed</td>"));
+              client.print("<td id=\"red\">Open</td>");
+            } 
+            else {
+              client.print(F("<td id=\"green\">Closed</td>"));
             }
           }
           client.print(F("</tr></table>"));
@@ -481,12 +484,10 @@ void playSound(int cNum, int frequency) {
 
 
 void getTemps(float *temps) {
-  //temps = {tempsensor0.readTempC(),tempsensor1.readTempC(),tempsensor2.readTempC(),tempsensor3.readTempC()};
   temps[0] = tempsensor0.readTempC();
   temps[1] = tempsensor1.readTempC();
   temps[2] = tempsensor2.readTempC();
   temps[3] = tempsensor3.readTempC();
-  //return temp;
  }
 
 String getTempsString(void) {
