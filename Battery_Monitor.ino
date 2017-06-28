@@ -37,8 +37,10 @@
 //List emails here that will recieve notifications
 //Remeber to update how many emails there are
 //<---------------EMAIL SETTINGS------------------>
-const String sender_email = "your_email@email.com"
-const String emails[] = {"recipient2@email.com", "recipient1@email.com"};
+const String sender_email = "batlablen@gmail.com";
+const String encoded_user = "YmF0bGFibGVu"; //encode here and http://base64-encoder-online.waraxe.us/
+const String encoded_password = "YkB0bEBibDNu";
+const String emails[] = {"batlablen@gmail.com", "earechavala@lenovo.com"};
 const int emails_length = 2; //number of emails in array to make things easier
 
 //<----------------------------------------------->
@@ -185,7 +187,7 @@ void loop(){
       EEPROM.write(ADDR_DAY, tm.Day); //overwrite EEPROM day
       EEPROM.write(ADDR_COUNT, EEPROM.read(ADDR_COUNT) + 1); //increment count by one
     }
-    if number of days to make a new log has occured, make a new log
+    //if number of days to make a new log has occured, make a new log
     if(EEPROM.read(ADDR_COUNT) >= DAYS_BETWEEN_NEW_LOG){
       EEPROM.write(ADDR_COUNT, 0); //reset count
       file_name = "data/" + twoDigitString(tm.Month) + "-" + twoDigitString(tm.Day) + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".CSV";
@@ -621,13 +623,13 @@ byte sendEmail(String message, String to_email)
  
   Serial.println(F("Sending User"));
 // Change to your base64 encoded user
-  client.println("YmF0bGFibGVu");
+  client.println(encoded_user);
  
   if(!eRcv()) return 0;
  
   Serial.println(F("Sending Password"));
 // change to your base64 encoded password
-  client.println("YkB0bEBibDNu");
+  client.println(encoded_password);
  
   if(!eRcv()) return 0;
  
