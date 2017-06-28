@@ -36,8 +36,9 @@
 
 //List emails here that will recieve notifications
 //Remeber to update how many emails there are
-//<-------------EMAIL RECIPIENTS------------------>
-const String emails[] = {"batlablen@gmail.com", "earechavala@lenovo.com"};
+//<---------------EMAIL SETTINGS------------------>
+const String sender_email = "your_email@email.com"
+const String emails[] = {"recipient2@email.com", "recipient1@email.com"};
 const int emails_length = 2; //number of emails in array to make things easier
 
 //<----------------------------------------------->
@@ -48,7 +49,7 @@ const int emails_length = 2; //number of emails in array to make things easier
 #define LOWER_TEMP_THRESH 18
 #define UPPER_GAS_THRESH 400
 #define LOWER_GAS_THRESH 100
-#define MEASURE_INTERVAL 10000
+#define MEASURE_INTERVAL_NORMAL 30000
 #define MEASURE_INTERVAL_EMERGENCY
 #define DAYS_BETWEEN_NEW_LOG 1
 #define ADDR_COUNT 1 //address for where day count will be stored in EEPROM
@@ -79,7 +80,7 @@ String file_name;
 int filenum;
 tmElements_t tm;
 unsigned long lastIntervalTime = 0;
-long measure_interval = 60000; //Time between measurements
+long measure_interval = MEASURE_INTERVAL_NORMAL; //Time between measurements
 //<------------------------------------------------>
 
 
@@ -157,7 +158,6 @@ void setup(){
   initialize_tempsensor();
 
 
-  //see if it is the same day as last log
   RTC.read(tm);
   Serial.println("Today is " + twoDigitString(tm.Month) + "-" + twoDigitString(tm.Day) + "-" + (String) tmYearToCalendar(tm.Year));
   getTemps(temps);
@@ -168,38 +168,36 @@ void loop(){
   //Buzz if any door is open, play corresponding sound
   checkDoors(doors);
 
-
-
-
   //Check if its time to take a new measurement
   if((millis()%lastIntervalTime) >= measure_interval){ //if its time, get new measuremnt and record it
     
     //Check if a day has passed to create a new log
     RTC.read(tm);
+    Serial.println("Today is " + twoDigitString(tm.Month) + "-" + twoDigitString(tm.Day) + "-" + (String) tmYearToCalendar(tm.Year));
   
     //If new day happnes, new log will be started
-    file_name = "data/" + twoDigitString(tm.Month) + "-" + twoDigitString(tm.Day) + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".CSV"; //update file name with new date
+    //file_name = "data/" + twoDigitString(tm.Month) + "-" + twoDigitString(tm.Day) + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".CSV"; //update file name with new date
   
     //This code can be used to wait for multiple days to pass. Uncomment below and comment out line above to use;
-    /*
+    
     if(EEPROM.read(ADDR_DAY) != tm.Day){
-      Serial.println("NEW DAY");
+      Serial.println((String)EEPROM.read(ADDR_DAY) + " != " + (String)tm.Day + " || NEW DAY");
       EEPROM.write(ADDR_DAY, tm.Day); //overwrite EEPROM day
       EEPROM.write(ADDR_COUNT, EEPROM.read(ADDR_COUNT) + 1); //increment count by one
     }
     if number of days to make a new log has occured, make a new log
     if(EEPROM.read(ADDR_COUNT) >= DAYS_BETWEEN_NEW_LOG){
       EEPROM.write(ADDR_COUNT, 0); //reset count
-      file_name = "data/" + (String) tm.Month + "-" + (String) tm.Day + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".CSV"; //update file name with new date
+      file_name = "data/" + twoDigitString(tm.Month) + "-" + twoDigitString(tm.Day) + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".CSV";
     }
-    */
+    
     getTemps(temps);
     sdLog(file_name, twoDigitString(tm.Month - 1) + '-' + twoDigitString(tm.Day) + '-' + (String)tmYearToCalendar(tm.Year) +  ' ' + twoDigitString(tm.Hour) + ':' + twoDigitString(tm.Minute) + ':' + twoDigitString(tm.Second)
     + ',' + temps[0] + ',' + temps[1] + ',' + temps[2] + ',' + temps[3]);
     //If any sensors are out of bounds, send an email
     for (int n = 0; n < 4; n++){
       if (temps[n] > UPPER_TEMP_THRESH || temps[n] < LOWER_TEMP_THRESH){
-        send_email("The temperature is: " + (String) temps[n] + " which is out of your temperature threshold limits (" + (String) LOWER_TEMP_THRESH + "-" + (String) UPPER_TEMP_THRESH + ").");
+        //send_email("The temperature is: " + (String) temps[n] + " which is out of your temperature threshold limits (" + (String) LOWER_TEMP_THRESH + "-" + (String) UPPER_TEMP_THRESH + ").");
         playSound(n+1 ,HIGH_FREQ);
         emergency_mode = true;
       }
@@ -209,7 +207,7 @@ void loop(){
       measure_interval = 5000;
       emergency_mode = false;
      }else{
-      measure_interval = MEASURE_INTERVAL;
+      measure_interval = MEASURE_INTERVAL_NORMAL;
     }
     lastIntervalTime = millis(); //update time since last interval
   }
@@ -422,7 +420,7 @@ void sdLog(String fileName, String stringToWrite) {
     Serial.print("Writing to ");
     Serial.print(fileName);
     Serial.print("...");
-    myFile.print(stringToWrite);
+    myFile.println(stringToWrite);
     // close the file:
     myFile.close();
     Serial.println("done.");
@@ -635,7 +633,7 @@ byte sendEmail(String message, String to_email)
  
 // change to your email address (sender)
   Serial.println(F("Sending From"));
-  client.println("MAIL From: <batlablen@gmail.com>");
+  client.println("MAIL From: <" + sender_email + ">");
   if(!eRcv()) return 0;
  
 // change to recipient address
@@ -655,7 +653,7 @@ byte sendEmail(String message, String to_email)
   client.println(rcpt_2);
  
 // change to your address
-  client.println("From: Me <batlablen@gmail.com>");
+  client.println("From: Me <" + sender_email + ">");
  
   client.println("Subject: Arduino Battery Lab Monitor Update\r\n");
  
