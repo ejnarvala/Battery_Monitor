@@ -37,10 +37,10 @@
 //List emails here that will recieve notifications
 //Remeber to update how many emails there are
 //<---------------EMAIL SETTINGS------------------>
-const String sender_email = "batlablen@gmail.com";
-const String encoded_user = "YmF0bGFibGVu"; //encode here and http://base64-encoder-online.waraxe.us/
-const String encoded_password = "YkB0bEBibDNu";
-const String emails[] = {"batlablen@gmail.com", "earechavala@lenovo.com"};
+const String sender_email = "your_email@email.com";
+const String encoded_user = "your_encoded_username"; //encode here and http://base64-encoder-online.waraxe.us/
+const String encoded_password = "your_encoded_password";
+const String emails[] = {"email0@mail.com", "email1@mail.com"};
 const int emails_length = 2; //number of emails in array to make things easier
 
 //<----------------------------------------------->
