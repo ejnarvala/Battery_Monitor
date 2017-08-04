@@ -46,4 +46,4 @@ Software:
 
 
 # Screenshot
-![screenshot](/screenshot.png)
+![screenshot](./screenshot.PNH)
