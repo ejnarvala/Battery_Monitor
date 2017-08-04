@@ -3,12 +3,9 @@
     <head>
         <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
         <title>Arduino Data History!</title>
-<!--        <script type="text/javascript" src="date.js"></script>-->
-        
-        <script src="https://code.jquery.com/jquery-3.1.1.min.js"
-		integrity="sha256-hVVnYaiADRTO2PzUGmuLJr8BLUSjGIZsDYGmIJLv2b8="
-		crossorigin="anonymous"></script>
-<!--        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>-->
+        <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+        <script src="http://code.highcharts.com/highcharts.js"></script>
+        <script src="http://code.highcharts.com/modules/exporting.js" type="text/javascript"></script>
         <script type="text/javascript">
 function getDataFilename(str){
     point = str.lastIndexOf("file=")+4;
@@ -22,7 +19,7 @@ function getDataFilename(str){
 }
 query  = window.location.search;
 var dataFilePath = "/data/"+getDataFilename(query);
-//var dataFilePath = getDataFilename(query);
+//var dataFilePath = "/data/17-07-12.CSV"; //for testing
 $(function () {
     var chart;
     $(document).ready(function() {
@@ -34,7 +31,15 @@ $(function () {
             chart: {
                 renderTo: 'container',
                 zoomType: 'xy',
-                spacingRight: 20
+                spacingRight: 20,
+                resetZoomButton: {
+                    position: {
+                        align: 'left',
+                        verticalAlign: 'bottom',
+                    }
+                },
+                borderRadius: 7,
+                backgroundColor: "#FBFBFF"
             },
     
             title: {
@@ -54,9 +59,10 @@ $(function () {
                 title: {
                     text: 'Temperature (Celcius)'
                 },
-                min: 0,
+                min: null,
                 startOnTick: false,
-                showFirstLabel: false
+                showFirstLabel: false,
+                max: null
             },
     
             legend: {
@@ -73,51 +79,37 @@ $(function () {
             plotOptions: {
                 series: {
                     cursor: 'pointer',
-                    lineWidth: 1.0,
-                    point: {
-                        events: {
-                            click: function() {
-                                hs.htmlExpand(null, {
-                                    pageOrigin: {
-                                        x: this.pageX,
-                                        y: this.pageY
-                                    },
-                                    headingText: this.series.name,
-                                    maincontentText: Highcharts.dateFormat('%H:%M - %b %e, %Y', this.x) +':<br/> '+
-                                        this.y,
-                                    width: 200
-                                });
-                            }
-                        }
-                    },
+                    lineWidth: 1.0
                 }
             },
     
             series: [{
-                name: 'Sensor 1',
+                name: 'Sensor 0',
                 marker: {
                     radius: 2
+                },
+                data: []
+            }
+            ],
+            exporting:{
+                buttons: {
+                    csvButton:{
+                        align: 'left',
+                        x: 7,
+                        text: 'Download CSV',
+                        onclick: function (){var file_path = dataFilePath;
+                            var a = document.createElement('A');
+                            a.href = file_path;
+                            a.download = file_path.substr(file_path.lastIndexOf('/') + 1);
+                            document.body.appendChild(a);
+                            a.click();
+                            document.body.removeChild(a);
+                            }
+                    }
                 }
-            },
-            {
-                name: 'Sensor 2',
-                marker: {
-                    radius: 2
-                }
-            },
-            {
-                name: 'Sensor 3',
-                marker: {
-                    radius: 2
-                }
-            },
-            {
-                name: 'Sensor 4',
-                marker: {
-                    radius: 2
-                }
-            }]
+            }
         };
+    
     
     
         // Load data asynchronously using jQuery. On success, add the data
@@ -131,11 +123,7 @@ $(function () {
                 timesline = [],
                 date,
     
-                // set up the 5 data series
-                temp0 = [],
-                temp1 = [],
-                temp2 = [],
-                temp3 = []
+                temps = [[]];
     
             // inconsistency
             if (typeof csv !== 'string') {
@@ -146,23 +134,31 @@ $(function () {
             csv = csv.split(/\n/g);
             csv.pop();
             jQuery.each(csv, function(i, line) {
-                // all data lines start with a double quote
                 line = line.split(',');
                 datetimeline = line[0].split(" ");
                 timesline = datetimeline[1].split(":");
                 dateline = datetimeline[0].split("-");
-                //date = parseInt(line[0], 10)*1000;
-                //date = Date.parse(line[0] + " EST");
-                date = Date.UTC(dateline[2], dateline[0], dateline[1], timesline[0], timesline[1], timesline[2]);
-                temp0.push([date, parseFloat(line[1])]);
-                temp1.push([date, parseFloat(line[2])]);
-                temp2.push([date, parseFloat(line[3])]);
-                temp3.push([date, parseFloat(line[4])]);
+                date = Date.UTC(dateline[2], dateline[0] - 1, dateline[1], timesline[0], timesline[1], timesline[2]);
+                line.pop(); //remove the gas data from being processed 
+                line.shift();
+//                console.log(line);
+                for(var i = 0; i < (line.length); i++){
+                    if(options.series.length == i){ //make new series to match number of temperatures sent in
+//                        console.log("series added");
+                        options.series.push({
+                        name: ('Sensor ' + i),
+                        data: [],
+                        marker: {
+                            radius: 2
+                        }
+                        });
+                    }
+                    options.series[i].data.push([date, parseFloat(line[i])]);
+                }
+
+
             });
-            options.series[0].data = temp0;
-            options.series[1].data = temp1;
-            options.series[2].data = temp2;
-            options.series[3].data = temp3;
+
             chart = new Highcharts.Chart(options);
             
         });
@@ -171,20 +167,26 @@ $(function () {
 });
         </script>
     </head>
+    <style> body{
+        line-height: 2em;
+        background: #01AADA; overflow-x: hidden;
+        } 
+        a{
+            color: #FBFBFF; 
+            text-decoration: none; 
+            font-family: "Helvetica Neue", Helvetica, Arial, sans-serif; 
+            font-weight:bold;
+        } 
+        a:hover{
+            color: #ddd; 
+            text-decoration: underline;
+        }
+        ::-webkit-scrollbar { 
+            display: none; 
+        }
+        
+    </style>
     <body>
-
-        <script src="https://cdnjs.cloudflare.com/ajax/libs/highcharts/5.0.6/highcharts.js"></script>
-
-        <!-- Additional files for the Highslide popup effect -->
-        <script type="text/javascript" src="http://www.highcharts.com/highslide/highslide-full.min.js"></script>
-        <script type="text/javascript" src="http://www.highcharts.com/highslide/highslide.config.js" charset="utf-8"></script>
-
-        <link rel="stylesheet" type="text/css" href="http://www.highcharts.com/highslide/highslide.css" />
-        <p style="text-align:center;">Please allow the chart to load, it may take up to 30 seconds</p>
         <div id="container" style="min-width: 400px; width: 100%; margin: 0 auto"></div>
-         <center><a id="link1" href="">Click Here to Download this Log</a></center>
-        <script>
-            document.getElementById("link1").setAttribute("href", dataFilePath);
-        </script>
     </body>
 </html>

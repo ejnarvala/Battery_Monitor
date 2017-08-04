@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+<script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+<html>
+    <style> 
+        .green{
+            background: #1EB24F;
+        }
+        .red{
+            background: #FF4136;
+        }
+        th{
+            background-color: #0B4F6C;
+            padding: 5px;
+            color: #fff; 
+            text-align: center;
+            font-weight: 300;
+        }
+        td {
+            padding: .5em 0.3em;
+            color: #fff; 
+            text-align: center;
+        } 
+        table{
+            color: #fff;
+            border: 3px solid #0B4F6C;
+            border-spacing: 0px;
+            width: 100%;
+            table-layout: fixed;
+            border-radius: 2px;
+        }
+        h1 {
+              font-size: 42px;
+              color: #fff;
+        } 
+        h2{
+            color: #fff;
+            font-size: 32px;
+        } 
+        a{
+            text-decoration:  none;
+            font-family: "Roboto";
+            color:            #fff;
+        }
+        a:hover{
+            color: #ddd;
+        }
+        html {
+            background: #ddd;
+            height: 100%;
+        }
+        body {
+            color: #fff; 
+            height: inherit;
+            background: #01AADA; 
+            box-shadow: 0 0 2px rgba(0, 0, 0, 0.06);
+            font-family: "Roboto";
+            text-align: center;
+            line-height: 1.5;
+            margin: 0 auto;
+            max-width: 75%;
+            padding: 2em 2em 4em;
+        }
+        iframe{
+            width: 100%;
+            height: 415px;
+        }
+    </style>
+    <script>
+        function sendframe(source){
+            document.getElementById('graphframe').setAttribute('src',source);
+            document.getElementById('graphframe').style.display = 'block';
+            return false;
+        }
+        var num_sensors_high = 1;
+        var table = "<table><tr><th></th>";
+        var table_refresh_interval = 2000;
+        var temp_thresh_room = 30;
+        var temp_thresh_high = 48;
+        var gas_thresh = 400;
+        function update_table() {
+            
+            $.ajax({
+                url: "http://30.30.30.90/json",
+                data: { tag: 'GetDataFromArduino'},
+                dataType: "json",
+                timeout: 3000,
+                success: function(data){
+                    table = "<table><tr><th></th>";
+                    for(var i = 0; i < data.temps.length; i++){
+                        table += "<th>Cabinet " + i + "</th>";
+                    }
+                    table += "</tr><tr><th>Temperature</th>";
+                    for(i = 0; i < data.temps.length - num_sensors_high; i++){
+                        if(data.temps[i] >= temp_thresh_room){
+                            table += "<td class=\"red\">" + data.temps[i] + "</td>";
+                        }
+                        else{
+                            table += "<td class=\"green\">" + data.temps[i] + "</td>";
+                        }
+                    }
+                    for(i = (data.temps.length - num_sensors_high); i < data.temps.length; i++){
+                        if(data.temps[i] >= temp_thresh_high){
+                            table += "<td class=\"red\">" + data.temps[i] + "</td>";
+                        }
+                        else{
+                            table += "<td class=\"green\">" + data.temps[i] + "</td>";
+                        }
+                    }
+                    table += "</tr><tr><th>Gas</th>";
+                    for(i in data.gas){
+                        if(data.gas[i] >= gas_thresh){
+                            table += "<td class=\"red\">" + data.gas[i] + "</td>";
+                        }
+                        else{
+                            table += "<td class=\"green\">" + data.gas[i] + "</td>";
+                        }
+                    }
+                    table += "</tr><tr><th>Door</th>";
+                    for(i in data.doors){
+                        if(data.doors[i] != 0){
+                            table+="<td class=\"red\">Open</td>";
+                        }
+                        else{
+                            table+="<td class=\"green\">Closed</td>";
+                        }
+                    }
+
+                }
+            })
+            table += "</tr></table>";
+            document.getElementById('live_table').innerHTML = table;
+        }
+        $(document).ready(function(){
+            setInterval(update_table, table_refresh_interval);
+        })
+        
+    </script>
+    

@@ -19,7 +19,7 @@ Insert the SD card and connect an ethernet cable and restart the Arduino. Monito
 
 Hardware:
 * Arduino Mega
-* Arduino Ethernet Shield 2
+* Arduino Ethernet Shield (W5100)
 * ChronoDot 2.1 - DS3231
 * MCP9808 Temperature Sensors (4)
 * Piezo Buzzers (4)

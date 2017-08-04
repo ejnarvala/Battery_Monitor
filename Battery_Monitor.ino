@@ -1,4 +1,3 @@
-
 //<-------------Included Libraries---------------->
 #include <Wire.h>
 #include "Adafruit_MCP9808.h"
@@ -37,133 +36,122 @@
 //List emails here that will recieve notifications
 //Remeber to update how many emails there are
 //<---------------EMAIL SETTINGS------------------>
-const String sender_email = "your_email@email.com";
-const String encoded_user = "your_encoded_username"; //encode here and http://base64-encoder-online.waraxe.us/
-const String encoded_password = "your_encoded_password";
-const String emails[] = {"email0@mail.com", "email1@mail.com"};
-const int emails_length = 2; //number of emails in array to make things easier
-
+const String sender_email = "";
+const String encoded_user = ""; //encode here and http://base64-encoder-online.waraxe.us/
+const String encoded_password = "";
+const String emails[] = {"", "", ""};
+const int emails_length = 3; //number of emails in array to make things easier
 //<----------------------------------------------->
 
 
 //<-------------STATIC DEFINIITONS----------------->
-#define UPPER_TEMP_THRESH 28
-#define LOWER_TEMP_THRESH 18
+#define UPPER_TEMP_THRESH_ROOMTEMP 29
+#define UPPER_TEMP_THRESH_HIGHTEMP 48
 #define UPPER_GAS_THRESH 400
-#define LOWER_GAS_THRESH 100
 #define MEASURE_INTERVAL_NORMAL 30000
-#define MEASURE_INTERVAL_EMERGENCY
+#define MEASURE_INTERVAL_EMERGENCY 5000
 #define DAYS_BETWEEN_NEW_LOG 1
 #define ADDR_COUNT 1 //address for where day count will be stored in EEPROM
-#define ADDR_DAY 0 //address for where day number " "
+#define ADDR_DAY 0 //address for where day number ''
 #define HIGH_FREQ 700
 #define LOW_FREQ 200
-
+#define NUM_SENSORS 4
+#define NUM_SENSORS_HIGHTEMP 1
+#define NUM_DOORS 4
+#define NUM_LOG_DAYS_TO_STORE 365
+#define DOOR_OPEN_DELAY 5000
 //<------------------------------------------------>
 
 
 
 //<-----------------IP SETTINGS-------------------->
-byte mac[] = { 0x8A, 0x7F, 0xA7, 0x2F, 0x8D, 0xE0 };  
+byte mac[] = { 0x2A, 0x7F, 0xA3, 0x2F, 0x8D, 0xE0 };  
 IPAddress ip(30,30,30,90);
 IPAddress gateway(30,30,30,254);
 IPAddress subnet(255, 255, 255, 0);
 EthernetServer server(80);
-//char smtpserver[] = "mail.smtp2go.com";
-IPAddress smtpserver (207,58,142,213); //equivalent but supposed to work better
+char smtpserver[] = "mail.smtp2go.com"; //for emails
 int port = 80; //only open port on this network
 EthernetClient client;
 //<---------------END IP SETTINGS------------------>
 
 
 
-//<------------------LOGGING VARIABLES--------------------->
+//<------------------VARIABLES--------------------->
 String file_name;
 int filenum;
 tmElements_t tm;
 unsigned long lastIntervalTime = 0;
+unsigned long lastEmailTime = 0;
 long measure_interval = MEASURE_INTERVAL_NORMAL; //Time between measurements
+long email_interval = 300000; //time between emails/texts sent in ms
+String str2log = "";
+String emailstr = "";
+char timestamp[30];
+File webFile;
 //<------------------------------------------------>
 
 
 //<------------------SENSOR VARIABLES-------------->
 // Create the MCP9808 temperature sensor object
-Adafruit_MCP9808 tempsensor0 = Adafruit_MCP9808();
-Adafruit_MCP9808 tempsensor1 = Adafruit_MCP9808();
-Adafruit_MCP9808 tempsensor2 = Adafruit_MCP9808();
-Adafruit_MCP9808 tempsensor3 = Adafruit_MCP9808();
-String blank  = "";
-String tab = "     ";
-const int buzzerPin0 = 15;
-const int buzzerPin1 = 16;
-const int buzzerPin2 = 17;
-const int buzzerPin3 = 18;
-const int doorPin0 = 3;
-const int doorPin1 = 7; 
-const int doorPin2 = 5;
-const int doorPin3 = 6;
-bool *doors = (bool*) malloc (4 * sizeof(bool));
-float *temps = (float*) malloc (4* sizeof(float));
+Adafruit_MCP9808 *sensors = (Adafruit_MCP9808*)malloc(NUM_SENSORS*sizeof(Adafruit_MCP9808));
+int *sensor_addresses = (int*) malloc (NUM_SENSORS*sizeof(int));
+const int buzzerPins[NUM_DOORS] = {22,24,26,28};
+const int doorPins[NUM_DOORS] = {3,5,6,7};
+const int smokerPins[NUM_SENSORS] = {0,1,2,3};
+float *smokers = (float*) malloc (NUM_SENSORS * sizeof(float));
+bool *doors = (bool*) malloc (NUM_DOORS * sizeof(bool));
+float *temps = (float*) malloc (NUM_SENSORS* sizeof(float));
+bool *doorWasOpen = (bool*) malloc (NUM_DOORS * sizeof(bool));
+long *doorOpenTimes = (long *) malloc (NUM_DOORS * sizeof(long));
 bool emergency_mode = false;
 //<------------------------------------------------>
-
-
-
-
-//<-------------------FUNCTIONS-------------------->
-//void playSound(int cNum, int frequency)
-//void getTemps(float temps*)
-//void initialize_ethernet()
-//void initialize_sd(void);
-//void initialize_tempsensor(void)
-//void checkDoors(bool *doors)
-//void send_email(String message) //Sends email to everyone on string arrary 'emails'
-//void sdLog(File filename, String message)
-//<------------------------------------------------>
-
-
-
 
 void setup(){
 
   //Start Serial monitoring
   Serial.begin(9600);
 
+  
   //Begin Pins
   //Buzzer Pins 0-3
-  pinMode(buzzerPin0, OUTPUT);
-  pinMode(buzzerPin1, OUTPUT);
-  pinMode(buzzerPin2, OUTPUT);
-  pinMode(buzzerPin3, OUTPUT);
-
   //Door pins 0-3, set them closed by default(high)
-  pinMode(doorPin0, INPUT_PULLUP); 
-  digitalWrite(doorPin0, HIGH);
-  pinMode(doorPin1, INPUT_PULLUP); 
-  digitalWrite(doorPin1, HIGH);
-  pinMode(doorPin2, INPUT_PULLUP); 
-  digitalWrite(doorPin2, HIGH);
-  pinMode(doorPin3, INPUT_PULLUP); 
-  digitalWrite(doorPin3, HIGH);
-
+  for(int i = 0; i < NUM_DOORS; i++){
+    pinMode(buzzerPins[i],OUTPUT);
+    pinMode(doorPins[i], INPUT_PULLUP); 
+    digitalWrite(doorPins[i], HIGH);
+    doorOpenTimes[i] = 0;
+    doorWasOpen[i] = false;
+  }
+ 
   
   //Start SD card
   initialize_sd();
-  //sdRWTest(); //Uncomment to test SD card Read/Write
+//  sdRWTest(); //Uncomment to test SD card Read/Write
+
+  //Start Temperature Sensor
+  initialize_tempsensor(sensors, sensor_addresses);
 
   
   //Start Ethernet Connection
   initialize_ethernet();
 
-  
-  //Start Temperature Sensor
-  initialize_tempsensor();
-
 
   RTC.read(tm);
-  Serial.println("Today is " + twoDigitString(tm.Month) + "-" + twoDigitString(tm.Day) + "-" + (String) tmYearToCalendar(tm.Year));
-  getTemps(temps);
-  Serial.println("Initial Temperatures: " + (String) temps[0] + " " + (String) temps[1] + " " + (String) temps[2] + " " + (String) temps[3]);
+  SdFile::dateTimeCallback(dateTime);
+  sprintf(timestamp, "%02d:%02d:%02d %2d/%2d/%2d \n", tm.Hour,tm.Minute,tm.Second,tm.Month,tm.Day,tm.Year+1970);
+  Serial.println(timestamp);
+
+  
+  getTemps(temps, sensors);
+  Serial.print("Initial Temperatures:");
+  for(int i = 0; i < NUM_SENSORS; i++){
+    Serial.print(" " + (String) temps[i]);
+  }
+  Serial.println("");
+  //set filename upon restart
+  file_name = "data/" + twoDigitString(tm.Month) + "-" + twoDigitString(tm.Day) + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".CSV";
+
 }
 
 void loop(){
@@ -175,13 +163,13 @@ void loop(){
     
     //Check if a day has passed to create a new log
     RTC.read(tm);
-    Serial.println("Today is " + twoDigitString(tm.Month) + "-" + twoDigitString(tm.Day) + "-" + (String) tmYearToCalendar(tm.Year));
+    Serial.println("Time is " + twoDigitString(tm.Month) + "-" + twoDigitString(tm.Day) + "-" + (String) tmYearToCalendar(tm.Year));
   
     //If new day happnes, new log will be started
     //file_name = "data/" + twoDigitString(tm.Month) + "-" + twoDigitString(tm.Day) + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".CSV"; //update file name with new date
   
     //This code can be used to wait for multiple days to pass. Uncomment below and comment out line above to use;
-    
+    //Serial.println("EERPOM Day is " + (String)EEPROM.read(ADDR_DAY) + " tm.Day is " + (String) tm.Day);
     if(EEPROM.read(ADDR_DAY) != tm.Day){
       Serial.println((String)EEPROM.read(ADDR_DAY) + " != " + (String)tm.Day + " || NEW DAY");
       EEPROM.write(ADDR_DAY, tm.Day); //overwrite EEPROM day
@@ -193,20 +181,49 @@ void loop(){
       file_name = "data/" + twoDigitString(tm.Month) + "-" + twoDigitString(tm.Day) + "-" + ((String)tmYearToCalendar(tm.Year)).substring(2) + ".CSV";
     }
     
-    getTemps(temps);
-    sdLog(file_name, twoDigitString(tm.Month - 1) + '-' + twoDigitString(tm.Day) + '-' + (String)tmYearToCalendar(tm.Year) +  ' ' + twoDigitString(tm.Hour) + ':' + twoDigitString(tm.Minute) + ':' + twoDigitString(tm.Second)
-    + ',' + temps[0] + ',' + temps[1] + ',' + temps[2] + ',' + temps[3]);
+    getTemps(temps, sensors);
+    checkSmokers(smokers);
+
+    
+    str2log = twoDigitString(tm.Month) + '-' + twoDigitString(tm.Day) + '-' + (String)tmYearToCalendar(tm.Year) +  ' ' + twoDigitString(tm.Hour) + ':' + twoDigitString(tm.Minute) + ':' + twoDigitString(tm.Second);
+    for(int i = 0; i < NUM_SENSORS; i++){
+      str2log += (',' + (String) temps[i]); 
+    }
+    for(int i = 0; i < NUM_SENSORS; i++){
+      if(i == 0){
+        str2log +=",GAS=";
+      }else{
+        str2log +=";";
+      }
+      str2log += (String) smokers[i]; 
+    }
+    sdLog(file_name, str2log);
+    //Serial.println("Writing: "+ str2log);
     //If any sensors are out of bounds, send an email
-    for (int n = 0; n < 4; n++){
-      if (temps[n] > UPPER_TEMP_THRESH || temps[n] < LOWER_TEMP_THRESH){
-        //send_email("The temperature is: " + (String) temps[n] + " which is out of your temperature threshold limits (" + (String) LOWER_TEMP_THRESH + "-" + (String) UPPER_TEMP_THRESH + ").");
-        playSound(n+1 ,HIGH_FREQ);
+    emailstr="";
+    for (int n = 0; n < (NUM_SENSORS - NUM_SENSORS_HIGHTEMP); n++){
+      if (temps[n] > UPPER_TEMP_THRESH_ROOMTEMP){
+        emailstr += "Cabinet " + (String) n + " [Room Temperature Cabinet] has  a Temperature of " + (String) temps[n]+" and a gas level of " + (String) smokers[n] + " PPM.\n";
+        playSound(n ,HIGH_FREQ);
         emergency_mode = true;
       }
     }
+    for (int n = (NUM_SENSORS - NUM_SENSORS_HIGHTEMP); n < NUM_SENSORS; n++){
+      if (temps[n] > UPPER_TEMP_THRESH_HIGHTEMP){
+        emailstr += "Cabinet " + (String) n + " [High Temperature Cabinet] has  a Temperature of " + (String) temps[n]+" and a gas level of " + (String) smokers[n] + " PPM.\n";
+        playSound(n ,HIGH_FREQ);
+        emergency_mode = true;
+      }
+    }
+    if (emailstr != ""){
+        if((millis()%lastEmailTime) >= email_interval || lastEmailTime == 0){
+          send_email(emailstr);
+          lastEmailTime = millis();
+        }
+    }
     if(emergency_mode){
       Serial.println("EMERGENCY MODE ACTIVATED; MEASUREMENT INTERVAL CHANGED TO 5 SECONDS");
-      measure_interval = 5000;
+      measure_interval = MEASURE_INTERVAL_EMERGENCY;
       emergency_mode = false;
      }else{
       measure_interval = MEASURE_INTERVAL_NORMAL;
@@ -254,40 +271,59 @@ void loop(){
           // print all the data files, use a helper to keep it clean
 
 
-          //Styling to make the website look pretty
-          client.print(F("<!DOCTYPE html><html><style> #green{background:limegreen;} #red{background:red;} th{font-weight:bold;} th,td {padding: 12px; color: #fff; text-align: center; border: 0px none;} table{color: #fff; border: 1px solid #ddd; border-collapse: collapse; width: auto;}"));
-          client.print(F("h1 {font-size: 42px; color: #fff;} h2{color: #fff; font-size: 32px;} html {background: #ddd; height: 100%;} ul{columns: 5}"));
-          client.print(F("body { color: #fff; height: 100%; background: #3498db; box-shadow: 0 0 2px rgba(0, 0, 0, 0.06); color: #545454; font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serif; text-align: center; line-height: 1.5; margin: 0 auto; max-width: 900px; padding: 2em 2em 4em;} li { list-style-type: none; font-size: 18px; font-family: \"Helvetica Neue\", Helvetica, Arial, sans-serif;} </style>"));
+          //Load top half from file
+          webFile = SD.open("excerpt.htm");
+          while(webFile.available()){
+            client.write(webFile.read());
+          }
+          webFile.close();
           client.print(F("<head><title>Arduino Battery Lab Monitor</title></head><body>"));
-          client.print(F("<h1>Arduino Battery Lab Monitor</h1>"));
-          client.print(F("<table style=\"width:100%\"><tr><th></th><th>Cabinet 1</th><th>Cabinet 2</th><th>Cabinet 3</th><th>Cabinet 4</th></tr>"));
-          client.print(F("<tr><th>Temperature</th>"));
-          getTemps(temps); //Update Temperature readings
-          checkDoors(doors); //Check again if doors are open
-          for (int i = 0; i < 4; i++){
-            if (temps[i] > UPPER_TEMP_THRESH || temps[i] < LOWER_TEMP_THRESH){
-              client.print(F("<td id=\"red\">"));
-            } 
-            else {
-              client.print(F("<td id=\"green\">"));
-            }
-            client.print((String)temps[i] + "</td>");
-          }
-          client.print(F("</tr><tr><th>Door</th>")); 
-          for (int i = 0; i < 4; i++){
-            if (doors[i]){
-              client.print("<td id=\"red\">Open</td>");
-            } 
-            else {
-              client.print(F("<td id=\"green\">Closed</td>"));
-            }
-          }
-          client.print(F("</tr></table>"));
-          client.print(F("<h2>View data for the week of (mm-dd-yy):</h2>"));
+          client.print(F("<h1>Battery Lab Monitor</h1>"));
+          client.print(F("<div id=\"live_table\"></div>"));
+
+          client.print(F("<br/><iframe src=\"\" frameBorder=\"0\" style=\"display:none;\"id=\"graphframe\"></iframe><br/>"));
           ListFiles(client);
           client.print(F("</body></html>"));
         }
-        else if (strstr(clientline, "GET /") != 0) {
+        else if (strstr(clientline, "GET /json")!=0){ //used for live update data
+          client.println(F("HTTP/1.1 200 OK"));
+          client.println("Access-Control-Allow-Origin: *");
+          client.println(F("Content-Type: application/json;charset=utf-8"));
+//          client.println(F("Connection: close"));
+          client.println(F(""));
+          getTemps(temps, sensors);
+          checkDoors(doors);
+          checkSmokers(smokers);
+          RTC.read(tm);
+          //formatting into json
+          client.print("{");
+          client.print("\"date\": ");
+          client.print("\"" +twoDigitString(tm.Month) + '-' + twoDigitString(tm.Day) + '-' + (String)tmYearToCalendar(tm.Year) +  ' ' + twoDigitString(tm.Hour) + ':' + twoDigitString(tm.Minute) + ':' + twoDigitString(tm.Second)+"\"");
+          client.print(",\"temps\":[");
+          for(int i = 0; i < NUM_SENSORS; i++){
+            client.print(temps[i]);
+            if( i != (NUM_SENSORS-1) ){
+              client.print(",");
+            }
+          }
+          client.print("],\"doors\":[");
+          for(int i = 0; i < NUM_DOORS; i++){
+            client.print(doors[i]);
+            if( i!= (NUM_DOORS-1) ){
+              client.print(",");
+            }
+          }
+          client.print("],\"gas\":[");
+          for(int i = 0; i < NUM_SENSORS; i++){
+            client.print(smokers[i]);
+            if( i!= (NUM_SENSORS-1) ){
+              client.print(",");
+            }
+          }
+          client.println("]}");
+//          client.stop();
+          break;
+       } else if (strstr(clientline, "GET /") != 0) {
           // this time no space after the /, so a sub-file!
           char *filename;
           filename = strtok(clientline + 5, "?"); // look after the "GET /" (5 chars) but before
@@ -335,18 +371,17 @@ void loop(){
 
 
 
-void initialize_tempsensor(){
-  if (!tempsensor0.begin(0x18)) {
-    Serial.println("Couldn't find Sensor 0");
-  }
-  if (!tempsensor1.begin(0x19)) {
-    Serial.println("Couldn't find Sensor 1");
-  }
-    if (!tempsensor2.begin(0x1A)) {
-    Serial.println("Couldn't find Sensor 2");
-  }
-    if (!tempsensor3.begin(0x1C)) {
-    Serial.println("Couldn't find Sensor 3");
+
+void initialize_tempsensor(Adafruit_MCP9808 *sensors, int *sensor_addresses){
+  Serial.println("Initializing Temp Sensors");
+  for(int i = 0; i < NUM_SENSORS; i++){
+    sensor_addresses[i] = 24 + i;
+    sensors[i] = Adafruit_MCP9808();
+    if(!sensors[i].begin(sensor_addresses[i])){
+      Serial.println("Couldn't find Sensor " + (String) i);
+    } else{
+      Serial.println("Sensor: " + (String) i + " Initialized");
+    }
   }
   Serial.println(F("Temperature Sensors Initialized"));
 }
@@ -359,16 +394,27 @@ void initialize_ethernet()
 {
   Serial.println("Initializing Ethernet");
   Ethernet.begin(mac, ip, gateway, gateway, subnet);
-  delay(25000);    //Long enough to be fuly set up
   server.begin();
-  Serial.println("DHCP configured!");
+  //delay(10000);
+  Serial.print("Server is at ");
+  Serial.println(Ethernet.localIP());
 }
 
+// call back for file timestamps
+void dateTime(uint16_t* date, uint16_t* time) {
+  RTC.read(tm);
+  sprintf(timestamp, "%02d:%02d:%02d %2d/%2d/%2d \n", tm.Hour,tm.Minute,tm.Second,tm.Month,tm.Day,tm.Year +1970);
+  Serial.println(timestamp);
+  // return date using FAT_DATE macro to format fields
+  *date = FAT_DATE(tm.Year+1970, tm.Month, tm.Day);
+  // return time using FAT_TIME macro to format fields
+  *time = FAT_TIME(tm.Hour, tm.Minute, tm.Second);
+}
 
 //Sets up SD card
 void initialize_sd() {
-  pinMode(4, OUTPUT); //Needed to not conflict with ethernet
-  digitalWrite(4, HIGH);
+  pinMode(10, OUTPUT); //Needed to not conflict with ethernet
+  digitalWrite(10, HIGH);
   while (!SD.begin(4)) { //Initializes sd card
     Serial.println(F("Card failed, or not present")); //Prints if SD not detected
     //return; // don't do anything more:
@@ -416,6 +462,7 @@ void sdRWTest(void){
 //Inputs char array pointer to file name on sd and
 //String of what to append to that file;
 void sdLog(String fileName, String stringToWrite) {
+  SdFile::dateTimeCallback(dateTime);
   File myFile = SD.open(fileName, FILE_WRITE);
   // if the file opened okay, write to it:
   if (myFile) {
@@ -443,36 +490,45 @@ void sdLog(String fileName, String stringToWrite) {
 void ListFiles(EthernetClient client) {
 
   File workingDir = SD.open("/data/");
-  
-  client.println("<ul>");
-  
+  int filecount = 0;
+  client.print("<table><tr><th colspan=\"5\">Data Logs</th></tr><tr>");
     while(true) {
       File entry =  workingDir.openNextFile();
       if (! entry) {
         break;
       }
-      client.print("<li><a href=\"/HC.htm?file=");
+      if ((filecount % 5 == 0) && (filecount != 0)){
+        client.print("</tr><tr>");
+      }
+      client.print("<td><a href=\"#\" onclick=\"return sendframe('HC.htm?file=");
+//      client.print("<td><a href=\"/HC.htm?file=");
       client.print(entry.name());
-      client.print("\">");
+//      client.print("\">");
+      client.print("');\">");
       client.print(entry.name());
-      client.println("</a></li>");
+      client.println("</a></td>");
       entry.close();
+      filecount++;
     }
-  client.println("</ul>");
+  client.println("</tr></table>");
+  //Serial.println("Number of files: " + (String) filecount);
+  if(filecount > NUM_LOG_DAYS_TO_STORE){
+    removeOldestLog();
+  }
   workingDir.close();
 }
 
+void removeOldestLog(){
+  File workingDir = SD.open("/data/");
+  File entry = workingDir.openNextFile();
+  SD.remove("/data/" + (String) entry.name());
+  Serial.println("Oldest Log Removed");
+}
 
 void playSound(int cNum, int frequency) {
-  int buzz;
-  switch (cNum){
-    case 1: buzz = buzzerPin0; break;
-    case 2: buzz = buzzerPin1; break;
-    case 3: buzz = buzzerPin2; break;
-    case 4: buzz = buzzerPin3; break;
-  }
-  for(int k = 0; k<cNum; k++) {
-    tone(buzz, 250, 400);
+  int buzz = buzzerPins[cNum];
+  for(int k = 0; k < (cNum + 1); k++) {
+    tone(buzz, 550, 400);
     delay(100);
     tone(buzz, 0, 400);
     delay(100);
@@ -481,45 +537,47 @@ void playSound(int cNum, int frequency) {
 
 
 
-void getTemps(float *temps) {
-  temps[0] = tempsensor0.readTempC();
-  temps[1] = tempsensor1.readTempC();
-  temps[2] = tempsensor2.readTempC();
-  temps[3] = tempsensor3.readTempC();
+void getTemps(float *temps, Adafruit_MCP9808 *sensors) {
+  for(int i = 0; i < NUM_SENSORS; i++){
+    temps[i] = sensors[i].readTempC();
+  }
  }
 
+void checkSmokers(float *smokers){
+  for(int i = 0; i < NUM_SENSORS; i++){
+    smokers[i] = analogRead(smokerPins[i]);
+  }
 
+}
 
 
 void checkDoors(bool *doors){
-  if(digitalRead(doorPin0) == HIGH){
-    playSound(1, LOW_FREQ);
-    doors[0] = true;
-    //Serial.println("DOOR 1 is OPEN");
-  } else {
-      doors[0] = false;
+  for(int i = 0; i < NUM_DOORS; i++){
+    if((digitalRead(doorPins[i]) == HIGH) && (doorWasOpen[i] == false)){
+      doorOpenTimes[i] = millis();
+      doorWasOpen[i] = true;
+      //Serial.println("Door Opened");
+      //Serial.println(doorOpenTimes[i]);
     }
-  if(digitalRead(doorPin1) == HIGH){
-    playSound(2, LOW_FREQ);
-    doors[1] = true;
-    //Serial.println("DOOR 2 is OPEN");
-  } else {
-      doors[1] = false;
+    if(digitalRead(doorPins[i]) == LOW){
+      doorWasOpen[i] = false;
+      doors[i] = false;
+      //Serial.println("Door is closed");
+    }else{
+      doors[i] = true;
+      //Serial.println("Door is open");
+      if (millis() % doorOpenTimes[i] >= DOOR_OPEN_DELAY){
+        playSound(i, LOW_FREQ);
+        //Serial.println("DOOR " + (String) i + " is OPEN");
+      }
+    }
+
+
+
+
+    
   }
-  if(digitalRead(doorPin2) == HIGH){
-    playSound(3, LOW_FREQ);
-    doors[2] = true;
-    //Serial.println("DOOR 3 is OPEN");
-  } else {
-      doors[2] = false;
-  }
-  if(digitalRead(doorPin3) == HIGH){
-    playSound(4, LOW_FREQ);
-    doors[3] = true;
-    //Serial.println("DOOR 4 is OPEN");
-  } else {
-      doors[3] = false;
-  }
+
 }
 
 String twoDigitString(int num){
@@ -536,16 +594,15 @@ String twoDigitString(int num){
 const char HeaderOK_0[] PROGMEM = "HTTP/1.1 200 OK";            //
 const char HeaderOK_1[] PROGMEM = "Content-Type: text/html";    //
 const char HeaderOK_2[] PROGMEM = "Connection: keep-alive";     // the connection will be closed after completion of the response
-const char HeaderOK_3[] PROGMEM = "Refresh: 5";                 // refresh the page automatically every 5 sec
-const char HeaderOK_4[] PROGMEM = "";                           //
+//const char HeaderOK_3[] PROGMEM = "Refresh: ";                 // refresh the page automatically every 5 sec
+const char HeaderOK_3[] PROGMEM = "";                           //
 
 // A table of pointers to the flash memory strings for the header
 const char* const HeaderOK_table[] PROGMEM = {   
   HeaderOK_0,
   HeaderOK_1,
   HeaderOK_2,
-  HeaderOK_3,
-  HeaderOK_4
+  HeaderOK_3
 };
 
 // A function for reasy printing of the headers  
@@ -553,7 +610,7 @@ void HtmlHeaderOK(EthernetClient client) {
   
     char buffer[30]; //A character array to hold the strings from the flash mem
     
-    for (int i = 0; i < 5; i++) {
+    for (int i = 0; i < 4; i++) {
       strcpy_P(buffer, (char*)pgm_read_word(&(HeaderOK_table[i]))); 
       client.println( buffer );
     }
